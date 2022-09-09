@@ -3,15 +3,11 @@
 import discord
 from discord.ext import commands
 import asyncio
-import random
-from random import randint
+from datetime import datetime
 import os
 from pathlib import Path
-import re
 
-intents = discord.Intents.default()
-intents.members = True
-intents.guilds = True
+intents = discord.Intents.all()
 
 async def command_prefix(bot, msg):
     return 's!'
@@ -36,7 +32,7 @@ async def enable(ctx, cog: str):
     """ Enable a cog """
     cog = cog.lower()
     if os.path.exists(Path(f"./cogs/{cog}.py")):
-        bot.load_extension(f"cogs.{cog}")
+        await bot.load_extension(f"cogs.{cog}")
         await ctx.send(f"Enabled {cog}")
     else:
         await ctx.send(f"{cog} doesn't exist")
@@ -47,7 +43,7 @@ async def disable(ctx, cog: str):
     """ Disable a cog """
     cog = cog.lower()
     if os.path.exists(Path(f"./cogs/{cog}.py")):
-        bot.unload_extension(f"cogs.{cog}")
+        await bot.unload_extension(f"cogs.{cog}")
         await ctx.send(f"Disabled {cog}")
     else:
         await ctx.send(f"{cog} doesn't exist")
@@ -60,7 +56,7 @@ async def reload(ctx, cog: str = None):
     async def reload_cog(ctx, cog):
         """ Reloads a cog """
         try:
-            bot.reload_extension(f"cogs.{cog}")
+            await bot.reload_extension(f"cogs.{cog}")
             await ctx.send(f"Reloaded {cog}")
         except Exception as e:
             await ctx.send(f"Couldn't reload {cog}, " + str(e))
@@ -120,17 +116,31 @@ async def info(ctx, cog: str = None):
                     embed.add_field(name=cog.qualified_name, value=f"{str(len(commands_list))} commands & {str(len(events_list))} events", inline=False)
         await ctx.send(embed=embed)
 
-# Load all cogs
-for cog in os.listdir(Path("./cogs")):
-    if cog.endswith(".py"):
-        try:
-            cog = f"cogs.{cog.replace('.py', '')}"
-            bot.load_extension(cog)
-        except Exception as e:
-            print(f"{cog} can not be loaded:")
-            raise e
+async def load_all_cogs():
+    for cog in os.listdir(Path("./cogs")):
+        if cog.endswith(".py"):
+            try:
+                cog = f"cogs.{cog.replace('.py', '')}"
+                await bot.load_extension(cog)
+            except Exception as e:
+                print(f"{cog} can not be loaded:")
+                raise e
+    print('Loaded all cogs')
+bot.setup_hook = load_all_cogs
+
+@bot.event
+async def on_ready():
+    try:
+        await asyncio.wait_for(bot.tree.sync(), timeout=5)
+        print('Synced app commands')
+    except asyncio.TimeoutError:
+        print("Didn't sync app commands. This was likely last done recently, resulting in rate limits.")
+
+    print("\nLaunched " + bot.user.name + " on " + str(datetime.now()))
+    print("ID: " + str(bot.user.id))
 
 # Run the bot
 with open("token.txt", "r") as f:
     token = f.read()
+
 bot.run(token)

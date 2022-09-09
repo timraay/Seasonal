@@ -1,10 +1,8 @@
 import discord
+from discord import Interaction, app_commands
 from discord.ext import commands, tasks
 import random
 from datetime import datetime, timedelta
-from ast import literal_eval
-import difflib
-import re
 
 from lib import channels 
 
@@ -31,84 +29,67 @@ class CustomException(Exception):
 class _events(commands.Cog):
     """A class with most events in it"""
 
-    def __init__(self, bot):
+    def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.update_status.start()
 
+        @bot.tree.error
+        async def on_interaction_error(interaction: Interaction, error):
+            exc = error.original if isinstance(error, app_commands.CommandInvokeError) else error
 
-    @commands.Cog.listener()
-    async def on_command_error(self, ctx, error):
-        
-        if not isinstance(error, commands.CommandOnCooldown) and not isinstance(error, commands.CommandNotFound):
-            ctx.command.reset_cooldown(ctx)
-        
-        if hasattr(ctx.command, 'on_error'):
-            return
+            if isinstance(error, app_commands.CommandInvokeError):
+                error = error.original
 
-        if isinstance(error, commands.CommandInvokeError):
-            error = error.original
+            embed = discord.Embed(color=discord.Color.from_rgb(221, 46, 68))
+            icon_url = 'https://cdn.discordapp.com/emojis/808045512393621585.png'
 
-        embed = discord.Embed(color=discord.Color.from_rgb(221, 46, 68))
-        icon_url = 'https://cdn.discordapp.com/emojis/808045512393621585.png'
+            if isinstance(error, app_commands.CommandNotFound):
+                embed.set_author(icon_url=icon_url, name='Unknown command!')
+            elif type(error).__name__ == CustomException.__name__:
+                embed.set_author(icon_url=icon_url, name=error.error)
+                embed.description = str(error)
+            elif isinstance(error, app_commands.CommandOnCooldown):
+                embed.set_author(icon_url=icon_url, name="That command is still on cooldown!")
+                embed.description = "Cooldown expires in " + convert_time(int(error.retry_after)) + "."
+            elif isinstance(error, app_commands.MissingPermissions):
+                embed.set_author(icon_url=icon_url, name="Missing required permissions to use that command!")
+                embed.description = str(error)
+            elif isinstance(error, app_commands.BotMissingPermissions):
+                embed.set_author(icon_url=icon_url, name="I am missing required permissions to use that command!")
+                embed.description = str(error)
+            elif isinstance(error, app_commands.CheckFailure):
+                embed.set_author(icon_url=icon_url, name="Couldn't run that command!")
+                embed.description = None
+            # elif isinstance(error, app_commands.MissingRequiredArgument):
+            #     embed.set_author(icon_url=icon_url, name="Missing required argument(s)!")
+            #     embed.description = str(error)
+            # elif isinstance(error, app_commands.MaxConcurrencyReached):
+            #     embed.set_author(icon_url=icon_url, name="You can't do that right now!")
+            #     embed.description = str(error)
+            elif isinstance(error, commands.BadArgument):
+                embed.set_author(icon_url=icon_url, name="Invalid argument!")
+                embed.description = str(error)
+            elif isinstance(error, channels.NotFound):
+                embed.set_author(icon_url=icon_url, name="Channel not found!")
+                embed.description = str(error)
+            else:
+                embed.set_author(icon_url=icon_url, name="An unexpected error occured!")
+                embed.description = str(error)
 
-        if isinstance(error, commands.CommandNotFound):
-            used_command = re.search(r'Command "(.*)" is not found', str(error)).group(1)
-            all_commands = [command.name for command in self.bot.commands]
-            close_matches = difflib.get_close_matches(used_command, all_commands, cutoff=0.3)
-            embed.set_author(icon_url=icon_url, name='Unknown command!')
-            if close_matches: embed.description = f"Maybe try one of the following: {ctx.prefix}{f', {ctx.prefix}'.join(close_matches)}"
+            await interaction.response.send_message(embed=embed, ephemeral=True)
 
-        elif type(error).__name__ == CustomException.__name__:
-            embed.set_author(icon_url=icon_url, name=error.error)
-            embed.description = str(error)
-        elif isinstance(error, commands.CommandOnCooldown):
-            embed.set_author(icon_url=icon_url, name="That command is still on cooldown!")
-            embed.description = "Cooldown expires in " + convert_time(int(error.retry_after)) + "."
-        elif isinstance(error, commands.MissingPermissions):
-            embed.set_author(icon_url=icon_url, name="Missing required permissions to use that command!")
-            embed.description = str(error)
-        elif isinstance(error, commands.BotMissingPermissions):
-            embed.set_author(icon_url=icon_url, name="I am missing required permissions to use that command!")
-            embed.description = str(error)
-        elif isinstance(error, commands.CheckFailure):
-            embed.set_author(icon_url=icon_url, name="Couldn't run that command!")
-            embed.description = None
-        elif isinstance(error, commands.MissingRequiredArgument):
-            embed.set_author(icon_url=icon_url, name="Missing required argument(s)!")
-            embed.description = str(error)
-        elif isinstance(error, commands.MaxConcurrencyReached):
-            embed.set_author(icon_url=icon_url, name="You can't do that right now!")
-            embed.description = str(error)
-        elif isinstance(error, commands.BadArgument):
-            embed.set_author(icon_url=icon_url, name="Invalid argument!")
-            embed.description = str(error)
-        elif isinstance(error, channels.NotFound):
-            embed.set_author(icon_url=icon_url, name="Channel not found!")
-            embed.description = str(error)
-        else:
-            embed.set_author(icon_url=icon_url, name="An unexpected error occured!")
-            embed.description = str(error)
-
-        await ctx.send(embed=embed)
-
-        if not isinstance(error, commands.CommandOnCooldown):
-            try:
-                print("\nError in " + ctx.guild.name + " #" + ctx.channel.name + ":\n" + str(error))
-            except:
-                print("\nFailed to log error")
-        raise error
+            if not isinstance(error, app_commands.CommandOnCooldown):
+                try:
+                    print("\nError in " + interaction.guild.name + " #" + interaction.channel.name + ":\n" + str(error))
+                except:
+                    print("\nFailed to log error")
+            raise error
 
     '''
     @commands.Cog.listener()
     async def on_guild_join(self, guild):
         models.Guild.create(guild.id)
     '''
-    @commands.Cog.listener()
-    async def on_ready(self):
-        print("\nLaunched " + self.bot.user.name + " on " + str(datetime.now()))
-        print("ID: " + str(self.bot.user.id))
-
-
 
     @tasks.loop(minutes=15.0)
     async def update_status(self):
@@ -116,13 +97,15 @@ class _events(commands.Cog):
         statuses = [
             {"type": "listening", "message": "meta discussions"},
             {"type": "watching", "message": "the latest dev brief"},
-            {"type": "listening", "message": "HLT"},
+            {"type": "listening", "message": "The Recapping"},
             {"type": "watching", "message": "the finals for the 7th time"},
             {"type": "watching", "message": "everyone getting blown up by arty"},
-            {"type": "playing", "message": "in Seasona- No I will never get to play in Seasonal :("},
+            {"type": "playing", "message": "in Seasonal"},
             {"type": "listening", "message": "the community"},
             {"type": "playing", "message": "mind games"},
-            {"type": "listening", "message": "meta discussions"}
+            {"type": "playing", "message": "with Alty's wheel"},
+            {"type": "watching", "message": "rockets fly across the map"},
+            {"type": "listening", "message": "the endless complaints"},
         ]
         status = random.choice(statuses)
         message = status["message"]
@@ -140,5 +123,5 @@ class _events(commands.Cog):
 
 
 
-def setup(bot):
-    bot.add_cog(_events(bot))
+async def setup(bot):
+    await bot.add_cog(_events(bot))

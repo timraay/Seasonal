@@ -24,7 +24,7 @@ def get_config_value(guild_id, field):
     return cur.fetchone()[0]
 
 async def has_perms(ctx, mod_role=False, admin_role=False):
-    if ctx.author.permissions_in(ctx.channel).administrator or await ctx.bot.is_owner(ctx.author):
+    if ctx.channel.permissions_for(ctx.author).administrator or await ctx.bot.is_owner(ctx.author):
         return True
     
     cur.execute('SELECT mod_role, admin_role FROM config WHERE guild_id = ?', (ctx.guild.id,))
@@ -106,5 +106,5 @@ class config(commands.Cog):
     #         await ctx.send(embed=discord.Embed(description='Set Calendar Channel to '+channel.mention))
 
 
-def setup(bot):
-    bot.add_cog(config(bot))
+async def setup(bot):
+    await bot.add_cog(config(bot))

@@ -14,9 +14,7 @@ cur.execute('''CREATE TABLE IF NOT EXISTS "streams" (
 db.commit()
 
 FLAGS = dict(
-    EN=("EN", "🇬🇧"),
     UK=("EN", "🇬🇧"),
-    GB=("EN", "🇬🇧"),
     US=("EN", "🇺🇸"),
     DE=("DE", "🇩🇪"),
     NL=("NL", "🇳🇱"),
