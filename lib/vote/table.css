@@ -1,0 +1,37 @@
+table {
+    border-collapse: collapse;
+    font-size: 40px;
+    font-family: verdana;
+    text-align: center;
+}
+td {
+    border: 1px solid black;
+    border-collapse: collapse;
+    background-color:  WhiteSmoke;
+    min-width:  190px;
+}
+.index {
+    text-align: right;
+    font-style: italic;
+    font-weight: normal;
+    padding-right: 13px;
+    min-width:  220px;
+}
+.blank {
+    border: none
+}
+.teamname {
+    border: 3px solid black;
+    border-collapse: collapse;
+    background-color: gray;
+}
+.chosen_by_you {
+    background-color:  Crimson;
+}
+.chosen_by_opponent {
+    background-color:  DarkOrange;
+}
+.final_pick {
+    background-color: PaleGreen;
+    font-weight: bold;
+}
