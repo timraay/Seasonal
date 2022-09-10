@@ -11,6 +11,38 @@ import sqlite3
 db = sqlite3.connect('seasonal.db')
 cur = db.cursor()
 
+cur.execute("""CREATE TABLE IF NOT EXISTS "channels" (
+	"creation_time"	TEXT,
+	"guild_id"	INTEGER,
+	"channel_id"	INTEGER,
+	"message_id"	INTEGER,
+	"title"	TEXT,
+	"desc"	TEXT,
+	"match_start"	TEXT,
+	"map"	TEXT,
+	"team1"	TEXT,
+	"team2"	TEXT,
+	"banner_url"	TEXT,
+	"has_vote"	INTEGER,
+	"has_predictions"	INTEGER,
+	"result"	TEXT,
+	"vote_message_id"	INTEGER,
+	"vote_result"	TEXT,
+	"vote_coinflip_option"	INTEGER,
+	"vote_coinflip"	INTEGER,
+	"vote_server_option"	INTEGER,
+	"vote_server"	TEXT,
+	"vote_first_ban"	INTEGER,
+	"vote_progress"	TEXT,
+	"predictions_message_id"	INTEGER,
+	"predictions_team1"	TEXT,
+	"predictions_team2"	TEXT,
+	"predictions_team1_emoji"	TEXT,
+	"predictions_team2_emoji"	TEXT,
+	PRIMARY KEY("channel_id")
+);""")
+db.commit()
+
 def get_all_channels(guild_id):
     cur.execute('SELECT channel_id FROM channels WHERE guild_id = ?', (guild_id,))
     res = cur.fetchall()
