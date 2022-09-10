@@ -317,7 +317,7 @@ class poll(commands.Cog):
                 for role_id in votes:
                     role = poll.message.guild.get_role(role_id)
                     if role.name.endswith('*'):
-                        role = discord.utils.get(poll.message.guild.roles, name=role.name[:-1])
+                        role = discord.utils.get(poll.message.guild.roles, name=role.name[:-1]) or role
                     roles.append(role)
                 if roles:
                     line = "> " + ", ".join([role.mention for role in roles])
