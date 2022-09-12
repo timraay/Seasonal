@@ -1,12 +1,21 @@
 from copy import deepcopy
 from pathlib import Path
+import imgkit
+
+from utils import get_config
 
 import os
 __location__ = os.path.realpath(
     os.path.join(os.getcwd(), os.path.dirname(__file__)))
 
-import imgkit
-config = imgkit.config(wkhtmltoimage=Path(__location__+'/vote/wkhtmltopdf/bin/wkhtmltoimage.exe'))
+app_path = get_config()['wkhtmltoimage']['AppPath']
+if app_path:
+    app_path = Path(app_path)
+    if not app_path.is_absolute():
+        app_path = Path(os.getcwd()) / app_path
+    config = imgkit.config(wkhtmltoimage=Path(__location__+'/vote/wkhtmltopdf/bin/wkhtmltoimage.exe'))
+else:
+    config = imgkit.config()
 
 MAPS = ['Foy', 'Hill 400', 'Hurtgen', 'PHL', 'SMDM', 'SME', 'Utah', 'Carentan', 'Omaha', 'Remagen', 'Kursk', 'Stalingrad']
 ACTIONS = ['available', 'chosen_by_you', 'chosen_by_opponent', 'final_pick']

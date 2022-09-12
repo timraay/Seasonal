@@ -10,7 +10,7 @@ intents = discord.Intents.default()
 intents.members = True
 intents.guilds = True
 
-command_prefix = get_config()['BOT']['CommandPrefix']
+command_prefix = get_config()['bot']['CommandPrefix']
 
 bot = commands.Bot(intents=intents, command_prefix=command_prefix, case_insensitive=True)
 bot.remove_command('help')
@@ -127,5 +127,5 @@ for cog in os.listdir(Path("./cogs")):
             raise e
 
 # Run the bot
-token = get_config()['BOT']['Token']
+token = get_config()['bot']['Token']
 bot.run(token)
