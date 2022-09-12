@@ -1,6 +1,7 @@
 import discord
 from discord.ext import commands
 from asyncio import TimeoutError
+from configparser import ConfigParser
 
 def int_to_emoji(value: int):
     if value == 0: return "0️⃣"
@@ -140,3 +141,11 @@ async def verify_reactions(message: discord.Message, emojis: list, whitelisted_i
                 if user.id not in whitelisted_ids:
                     await message.remove_reaction(emoji, user)
 
+CONFIG = {}
+def get_config():
+    global CONFIG
+    if not CONFIG:
+        parser = ConfigParser()
+        parser.read('config.ini')
+    return CONFIG
+    

@@ -2,19 +2,15 @@
 
 import discord
 from discord.ext import commands
-import asyncio
-import random
-from random import randint
 import os
 from pathlib import Path
-import re
+from .utils import get_config
 
 intents = discord.Intents.default()
 intents.members = True
 intents.guilds = True
 
-async def command_prefix(bot, msg):
-    return 's!'
+command_prefix = get_config()['BOT']['CommandPrefix']
 
 bot = commands.Bot(intents=intents, command_prefix=command_prefix, case_insensitive=True)
 bot.remove_command('help')
@@ -131,6 +127,5 @@ for cog in os.listdir(Path("./cogs")):
             raise e
 
 # Run the bot
-with open("token.txt", "r") as f:
-    token = f.read()
+token = get_config()['BOT']['Token']
 bot.run(token)
