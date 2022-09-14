@@ -4,7 +4,7 @@ import discord
 from discord.ext import commands
 import os
 from pathlib import Path
-from .utils import get_config
+from utils import get_config
 
 intents = discord.Intents.default()
 intents.members = True
