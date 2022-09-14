@@ -146,7 +146,7 @@ def get_config() -> ConfigParser:
     global CONFIG
     if not CONFIG:
         parser = ConfigParser()
-        parser.read('config.ini')
+        parser.read('config.ini', encoding='utf-8')
         CONFIG = parser
     return CONFIG
     

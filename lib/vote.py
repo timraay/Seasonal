@@ -31,7 +31,7 @@ HTML_MAP_ROW = """
   </tr>"""
 with open(Path(__location__+'/vote/table.html'), 'r') as f:
     rows = [HTML_MAP_ROW.format(i=i, mapname=mapname) for i, mapname in enumerate(MAPS)]
-    HTML_DOC = f.read().format(tbody="".join(rows))
+    HTML_DOC = f.read().replace("BODY_HERE", "".join(rows))
 
 class MapVote:
 
