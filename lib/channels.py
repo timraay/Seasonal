@@ -6,6 +6,7 @@ from random import randint
 
 from lib.vote import MapVote
 from lib.streams import Stream
+from utils import get_config
 
 import sqlite3
 db = sqlite3.connect('seasonal.db')
@@ -57,8 +58,8 @@ class MatchChannel:
         predictions_message_id = 0
         predictions_team1 = ''
         predictions_team2 = ''
-        predictions_team1_emoji = '1️⃣'
-        predictions_team2_emoji = '2️⃣'
+        predictions_team1_emoji = get_config()['visuals']['DefaultTeam1Emoji']
+        predictions_team2_emoji = get_config()['visuals']['DefaultTeam2Emoji']
         cur.execute(
             "INSERT INTO channels VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (creation_time, guild_id, channel_id, message_id, title, desc, match_start, map, team1, team2, banner_url, int(has_vote), int(has_predictions), result,
