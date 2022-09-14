@@ -142,10 +142,11 @@ async def verify_reactions(message: discord.Message, emojis: list, whitelisted_i
                     await message.remove_reaction(emoji, user)
 
 CONFIG = {}
-def get_config():
+def get_config() -> ConfigParser:
     global CONFIG
     if not CONFIG:
         parser = ConfigParser()
         parser.read('config.ini')
+        CONFIG = parser
     return CONFIG
     

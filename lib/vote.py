@@ -1,6 +1,7 @@
 from copy import deepcopy
 from pathlib import Path
 import imgkit
+from io import StringIO
 
 from utils import get_config
 
@@ -17,8 +18,20 @@ if app_path:
 else:
     config = imgkit.config()
 
-MAPS = ['Foy', 'Hill 400', 'Hurtgen', 'PHL', 'SMDM', 'SME', 'Utah', 'Carentan', 'Omaha', 'Remagen', 'Kursk', 'Stalingrad']
+MAPS = get_config()['behavior']['MapPool'].split(',')
 ACTIONS = ['available', 'chosen_by_you', 'chosen_by_opponent', 'final_pick']
+
+HTML_MAP_ROW = """
+  <tr>
+    <th id="map{i}" class="index">{mapname}</th>
+    <td id="team1_allies{i}" class="{{team1_allies{i}}}">Allies</td>
+    <td id="team1_axis{i}" class="{{team1_axis{i}}}">Axis</td>
+    <td id="team2_allies{i}" class="{{team2_allies{i}}}">Allies</td>
+    <td id="team2_axis{i}" class="{{team2_axis{i}}}">Axis</td>
+  </tr>"""
+with open(Path(__location__+'/vote/table.html'), 'r') as f:
+    rows = [HTML_MAP_ROW.format(i=i, mapname=mapname) for i, mapname in enumerate(MAPS)]
+    HTML_DOC = f.read().format(tbody="".join(rows))
 
 class MapVote:
 

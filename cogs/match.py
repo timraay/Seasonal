@@ -11,7 +11,7 @@ from lib.streams import Stream, FLAGS
 from lib.vote import MapVote, MAPS
 from cogs._events import CustomException
 from cogs.config import get_config_value, has_perms, set_config_value
-from utils import verify_reactions
+from utils import verify_reactions, get_config
 
 
 CHANNEL_EMOJIS = {
@@ -95,7 +95,7 @@ class match(commands.Cog):
 
     @match.command(aliases=['new', 'add'])
     async def create(self, ctx, channel: discord.TextChannel, title: str = "Unnamed Match", description: str = "", team1: discord.Role = None,
-    team2: discord.Role = None, vote_n_stuff: bool = False):
+    team2: discord.Role = None, vote_n_stuff: bool = get_config().getboolean('behavior', 'EnableVotingByDefault')):
         try: MatchChannel(channel.id)
         except NotFound: pass
         else: raise commands.BadArgument('A match is already linked with this channel.')
@@ -679,8 +679,8 @@ class match(commands.Cog):
         elif argument in ["reset"]:
             match.predictions_team1 = []
             match.predictions_team2 = []
-            match.predictions_team1_emoji = '1️⃣'
-            match.predictions_team2_emoji = '2️⃣'
+            match.predictions_team1_emoji = get_config()['visuals']['DefaultTeam1Emoji']
+            match.predictions_team2_emoji = get_config()['visuals']['DefaultTeam2Emoji']
             match.save()
             
             embed = discord.Embed(color=discord.Color(7844437))
