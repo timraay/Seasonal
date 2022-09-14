@@ -29,7 +29,7 @@ HTML_MAP_ROW = """
     <td id="team2_allies{i}" class="{{team2_allies{i}}}">Allies</td>
     <td id="team2_axis{i}" class="{{team2_axis{i}}}">Axis</td>
   </tr>"""
-with open(Path(__location__+'/vote/table.html'), 'r') as f:
+with open(Path(__location__+'/vote/table.html'), 'r', encoding='utf-8') as f:
     rows = [HTML_MAP_ROW.format(i=i, mapname=mapname) for i, mapname in enumerate(MAPS)]
     HTML_DOC = f.read().replace("BODY_HERE", "".join(rows))
 
@@ -163,8 +163,7 @@ class MapVote:
         statuses['team1_name'] = self.team1_name
         statuses['team2_name'] = self.team2_name
 
-        with open(Path(__location__+'/vote/table.html'), 'r') as f:
-            html = f.read().format(**statuses)
+        html = HTML_DOC.format(**statuses)
         imgkit.from_string(html, 'output.png', config=config, css=Path(__location__+'/vote/table.css'), options={'format': 'png', 'quiet': ''})
 
 
