@@ -48,7 +48,7 @@ class CalendarCategory:
         if not channel:
             raise ValueError('The category could not be found')
 
-        embed = discord.Embed(color=discord.Color(get_config().getint('visuals', 'CalendarColor')), description="")
+        embed = discord.Embed(color=discord.Color(16237246), description="")
         embed.set_author(name=channel.name, icon_url=guild.icon_url)
         for match_id, match in sorted(self.matches.items(), key=lambda m: m[1].match_start if m[1].match_start else datetime(3000, 1, 1, tzinfo=timezone.utc)):
             lines = list()
