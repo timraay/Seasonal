@@ -25,6 +25,7 @@ FLAGS = dict(
     RU=("RU", "🇷🇺"),
     ES=("ES", "🇪🇸"),
     JP=("JP", "🇯🇵"),
+    AU=("EN", "🇦🇺"),
 )
 
 class Stream:
@@ -73,14 +74,16 @@ class Stream:
         lang = self.lang.upper()
         if len(lang) != 2:
             return '❓'
-        return FLAGS[lang][1]
+        flags = FLAGS.get(lang, ['??', '❓'])
+        return flags[lang][1]
     
     @property
     def displaylang(self):
         lang = self.lang.upper()
         if len(lang) != 2:
             return '??'
-        return FLAGS[lang][0]
+        flags = FLAGS.get(lang, ['??', '❓'])
+        return flags[lang][0]
         
     def to_text(self, small=False):
         if small:
