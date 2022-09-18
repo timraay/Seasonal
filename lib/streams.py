@@ -75,7 +75,7 @@ class Stream:
         if len(lang) != 2:
             return '❓'
         flags = FLAGS.get(lang, ['??', '❓'])
-        return flags[lang][1]
+        return flags[1]
     
     @property
     def displaylang(self):
@@ -83,7 +83,7 @@ class Stream:
         if len(lang) != 2:
             return '??'
         flags = FLAGS.get(lang, ['??', '❓'])
-        return flags[lang][0]
+        return flags[0]
         
     def to_text(self, small=False):
         if small:
