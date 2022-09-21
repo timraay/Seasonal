@@ -286,7 +286,7 @@ class poll(commands.Cog):
 
     async def poll_name_autocomplete(self, interaction: Interaction, current: str) -> List[app_commands.Choice[str]]:
         return [
-            app_commands.Choice(name=poll.question, value=str(poll.message.id))
+            app_commands.Choice(name=poll.question if len(poll.question) < 100 else poll.question[:98]+'..', value=str(poll.message.id))
             for poll in POLLS.values() if
                 poll.message.guild == interaction.guild
                 and current.lower() in poll.question.lower()
