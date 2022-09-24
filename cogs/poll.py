@@ -270,7 +270,6 @@ class poll(commands.Cog):
     
     @commands.Cog.listener()
     async def on_raw_message_delete(self, payload):
-        print('delete')
         cur.execute('''SELECT votes FROM polls WHERE message_id = ?''', (payload.message_id,))
         if cur.fetchone():
             cur.execute('''DELETE FROM polls WHERE message_id = ?''', (payload.message_id,))
