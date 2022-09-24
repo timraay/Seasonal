@@ -49,7 +49,7 @@ class CalendarCategory:
             raise ValueError('The category could not be found')
 
         embed = discord.Embed(color=discord.Color(16237246), description="")
-        embed.set_author(name=channel.name, icon_url=guild.icon_url)
+        embed.set_author(name=channel.name, icon_url=guild.icon.url)
         for match_id, match in sorted(self.matches.items(), key=lambda m: m[1].match_start if m[1].match_start else datetime(3000, 1, 1, tzinfo=timezone.utc)):
             lines = list()
             if match.vote_result:
@@ -80,7 +80,7 @@ class CalendarCategory:
         cur.execute('''UPDATE
             message_id = ?,
             channel_id = ?
-        WHERE category_id = ?''')
+        WHERE category_id = ?''', (self.message_id, self.channel_id, self.category_id))
         db.commit()
 
 def get_categories(guild: discord.Guild):
@@ -268,5 +268,5 @@ class Calendar(commands.Cog):
         self.calendar_updater.start()
             
 
-def setup(bot):
-    bot.add_cog(Calendar(bot))
+async def setup(bot):
+    await bot.add_cog(Calendar(bot))

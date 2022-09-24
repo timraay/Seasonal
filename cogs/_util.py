@@ -1,8 +1,5 @@
 import discord
 from discord.ext import commands
-import random
-from random import randint
-import os
 import ast
 
 
@@ -30,11 +27,7 @@ class _util(commands.Cog):
         self.bot = bot
 
     @commands.command()
-    async def help(self, ctx):
-        await ctx.send('Use `s!match`')
-
-        
-    @commands.command()
+    @commands.is_owner()
     async def invite(self, ctx):
         oauth = discord.utils.oauth_url(self.bot.user.id, permissions=discord.Permissions(permissions=8))
         embed = discord.Embed(description=f"[☺️ Click here for an invite link!]({oauth})")
@@ -137,5 +130,5 @@ class _util(commands.Cog):
     '''
 
 
-def setup(bot):
-    bot.add_cog(_util(bot))
+async def setup(bot):
+    await bot.add_cog(_util(bot))

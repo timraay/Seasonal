@@ -1,4 +1,4 @@
 emoji-country-flag
 python-dateutil
 imgkit
-discord.py==1.7.3
+discord.py>=2.0.1
