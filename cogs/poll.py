@@ -103,6 +103,10 @@ class Poll:
         return None
     
     @property
+    def total_votes(self):
+        return sum(len(votes) for votes in self.data.values())
+    
+    @property
     def voters(self):
         return [vote for votes in self.data.values() for vote in votes]
 
@@ -169,7 +173,7 @@ class poll(commands.Cog):
             description="\n".join(f"{NUMBER_EMOJIS[i]} {choice}" for i, choice in enumerate(choices, 1))
         )
         embed.set_author(name=question, icon_url="https://cdn.discordapp.com/attachments/729998051288285256/924971834343059496/unknown.png")
-        embed.set_footer(text="Only one vote per team. Press ❓ to see your team's vote.")
+        embed.set_footer(text=f"0 votes • Only one vote per team. Press ❓ to see your team's vote.")
 
         view = self._get_poll_view(len(choices))
         
@@ -219,6 +223,10 @@ class poll(commands.Cog):
             embed.set_author(name=f"Voted for option {number}!", icon_url="https://cdn.discordapp.com/emojis/809149148356018256.png")
             poll.add_vote(role.id, number)
             await interaction.response.send_message(embed=embed, ephemeral=True)
+            
+            embed = interaction.message.embeds[0]
+            embed.set_footer(text=f"{poll.total_votes} votes • Only one vote per team. Press ❓ to see your team's vote.")
+            await interaction.message.edit(embed=embed)
 
     async def user_ask_vote_status(self, interaction: Interaction):
         role = self.find_role(interaction.user)
@@ -242,7 +250,7 @@ class poll(commands.Cog):
             embed = discord.Embed(color=discord.Color(7844437))
             embed.set_author(name=f"Your current vote is option {vote}!", icon_url="https://cdn.discordapp.com/emojis/809149148356018256.png")
             embed.description = "To change your team's vote you can always press one of the buttons."
-            embed.set_footer(text="Results will become visible once the poll has ended. Your vote is and will remain anonymous.")
+            embed.set_footer(text="Results will become visible once the poll has ended.")
             await interaction.response.send_message(embed=embed, ephemeral=True)
             return
         
@@ -251,7 +259,7 @@ class poll(commands.Cog):
                 title = "Your team has not yet voted!",
                 description = "As long as the poll is still active you can cast your vote by pressing one of the buttons. You can change your choice later on."
             )
-            embed.set_footer(text="Results will become visible once the poll has ended. Your vote is and will remain anonymous.")
+            embed.set_footer(text="Results will become visible once the poll has ended.")
             await interaction.response.send_message(embed=embed, ephemeral=True)
 
     def find_role(self, member: discord.Member):
@@ -329,15 +337,18 @@ class poll(commands.Cog):
 
     @PollGroup.command(name="end", description="End the poll and show the results")
     @app_commands.autocomplete(poll=poll_name_autocomplete)
-    async def poll_results(self, interaction: Interaction, poll: str):
+    @app_commands.describe(
+        reveal_teams="Whether to make each team's choice publically visible"
+    )
+    async def poll_results(self, interaction: Interaction, poll: str, reveal_teams: bool):
         poll: Poll = POLLS.get(int(poll), None)
         if poll is None or poll.message.guild != interaction.guild:
             raise commands.BadArgument("Unknown poll")
         
         embed = poll.message.embeds[0]
 
-        embed_result = self.get_results_embed(embed, poll)
-        embed_result.set_footer(text="The poll has ended. You can no longer vote.")
+        embed_result = self.get_results_embed(embed, poll, show_teams=reveal_teams)
+        embed_result.set_footer(text=f"{poll.total_votes} votes • The poll has ended. You can no longer vote.")
         await poll.message.edit(embed=embed_result, view=ui.View())
         poll.delete()
 
@@ -360,7 +371,7 @@ class poll(commands.Cog):
                 
         embed.description = f"[Jump to message]({poll.message.jump_url})\n\n" + embed.description
         embed.timestamp = datetime.now()
-        embed.set_footer(text='To conclude the poll use "/poll end"')
+        embed.set_footer(text=f'{poll.total_votes} votes • To conclude the poll use "/poll end"')
         
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
