@@ -1,6 +1,6 @@
 table {
     border-collapse: collapse;
-    font-size: 40px;
+    font-size: 35px;
     font-family: verdana;
     text-align: center;
 }
@@ -8,28 +8,42 @@ td {
     border: 1px solid black;
     border-collapse: collapse;
     background-color:  WhiteSmoke;
-    min-width:  190px;
+    width: 180px;
+    font-size: 32px;
+}
+.prevent-overflow {
+    white-space: nowrap;
+    overflow: hidden;
 }
 .index {
-    text-align: right;
-    font-style: italic;
+    text-align: center;
     font-weight: normal;
-    padding-right: 13px;
-    min-width:  220px;
+    font-size: 28px;
+    width: 248px;
+    max-width: 248px;
+    border-top: 0;
+    border-bottom: 0;
+    background-color: white;
+    padding: 0px 13px 0px 13px;
 }
 .blank {
     border: none
+}
+.empty-row {
+    padding-top: 3px;
+    border: none;
 }
 .teamname {
     border: 3px solid black;
     border-collapse: collapse;
     background-color: gray;
+    max-width: 360px;
 }
 .chosen_by_you {
-    background-color:  Crimson;
+    background-color:  rgb(255, 52, 86);
 }
 .chosen_by_opponent {
-    background-color:  DarkOrange;
+    background-color:  rgb(255, 179, 87);
 }
 .final_pick {
     background-color: PaleGreen;

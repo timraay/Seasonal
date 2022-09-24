@@ -18,19 +18,31 @@ if app_path:
 else:
     config = imgkit.config()
 
-MAPS = get_config()['behavior']['MapPool'].split(',')
+MAPS_WITH_BREAKS = get_config()['behavior']['MapPool'].split(',')
+MAPS = [m for m in MAPS_WITH_BREAKS if m]
 ACTIONS = ['available', 'chosen_by_you', 'chosen_by_opponent', 'final_pick']
 
 HTML_MAP_ROW = """
   <tr>
-    <th id="map{i}" class="index">{mapname}</th>
     <td id="team1_allies{i}" class="{{team1_allies{i}}}">Allies</td>
     <td id="team1_axis{i}" class="{{team1_axis{i}}}">Axis</td>
+    <td id="map{i}" class="index prevent-overflow">{mapname}</th>
     <td id="team2_allies{i}" class="{{team2_allies{i}}}">Allies</td>
     <td id="team2_axis{i}" class="{{team2_axis{i}}}">Axis</td>
   </tr>"""
+HTML_EMPTY_ROW = """
+  <tr>
+    <td class="empty-row">
+  </tr>"""
 with open(Path(__location__+'/vote/table.html'), 'r', encoding='utf-8') as f:
-    rows = [HTML_MAP_ROW.format(i=i, mapname=mapname) for i, mapname in enumerate(MAPS)]
+    rows = list()
+    i = -1
+    for mapname in MAPS_WITH_BREAKS:
+        if not mapname:
+            rows.append(HTML_EMPTY_ROW)
+        else:
+            i += 1
+            rows.append(HTML_MAP_ROW.format(i=i, mapname=mapname))
     HTML_DOC = f.read().replace("BODY_HERE", "".join(rows))
 
 class MapVote:
