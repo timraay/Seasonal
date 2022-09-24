@@ -249,10 +249,24 @@ class MatchChannel:
         # Predictions
         embed = discord.Embed(title='Match Predictions')
         embed.description = f'_ _\n{self.predictions_team1_emoji} {self.get_team1(ctx)} (**{len(self.predictions_team1)}** votes)\n{self.predictions_team2_emoji} {self.get_team2(ctx)} (**{len(self.predictions_team2)}** votes)'
-        if self.match_start:
-            if self.match_start > datetime.now(timezone.utc): embed.set_footer(text='Voting ends at ' + self.match_start.strftime('%A %B %d, %H:%M %p UTC').replace(" 0", " "))
-            else: embed.set_footer(text='Voting has ended')
+
+        if not self.should_have_predictions():
+            embed.set_footer(text='Voting has ended')
+        elif self.match_start:
+            embed.set_footer(text='Voting ends at ' + self.match_start.strftime('%A %B %d, %H:%M %p UTC').replace(" 0", " "))
         return embed
+    
+    def should_have_predictions(self):
+        return not (self.result or (self.match_start and self.match_start > datetime.now(timezone.utc)))
+
+    def get_prediction_of_user(self, user_id):
+        user_id = str(user_id)
+        if user_id in self.predictions_team1:
+            return 1
+        elif user_id in self.predictions_team2:
+            return 2
+        else:
+            return None
 
     def ban_map(self, team: int, faction, map):
         self.vote.ban(team, faction, map)
