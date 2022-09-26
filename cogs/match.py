@@ -218,7 +218,7 @@ class match(commands.Cog):
         if not match_start.tzinfo:
             match_start = match_start.replace(tzinfo=datetime.timezone.utc)
         match_start = match_start.astimezone(datetime.timezone.utc)
-        await self._set_match_prop(interaction, channel, "date", match_start, match_start.isoformat(sep=' '))
+        await self._set_match_prop(interaction, channel, "match_start", match_start, match_start.isoformat(sep=' '))
     @MatchSetGroup.command(name="team1")
     @app_commands.describe(
         channel="The match channel",
