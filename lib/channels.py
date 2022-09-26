@@ -258,7 +258,7 @@ class MatchChannel:
         return embed
     
     def should_have_predictions(self):
-        return not (self.result or (self.match_start and self.match_start > datetime.now(timezone.utc)))
+        return not (self.result or (self.match_start and self.match_start < datetime.now(timezone.utc)))
 
     def get_prediction_of_user(self, user_id):
         user_id = str(user_id)
