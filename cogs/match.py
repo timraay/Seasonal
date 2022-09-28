@@ -286,13 +286,11 @@ class match(commands.Cog):
             stream = Stream.new(channel.id, language, name, url)
             embed = discord.Embed(description=stream.to_text(), color=discord.Color(7844437))
             embed.set_author(name="Streamer added", icon_url="https://cdn.discordapp.com/emojis/809149148356018256.png")
-            message = await _interaction.original_response()
-            await message.edit(embed=embed, view=None)
+            await _interaction.message.edit(embed=embed, view=None)
         async def on_cancel(_interaction: Interaction):
             embed = discord.Embed(color=discord.Color.from_rgb(221, 46, 68))
             embed.set_author(name="User cancelled the action", icon_url="https://cdn.discordapp.com/emojis/808045512393621585.png")
-            message = await _interaction.original_response()
-            await message.edit(embed=embed, view=None)
+            await _interaction.message.edit(embed=embed, view=None)
 
         await interaction.response.send_message(embed=embed, view=ConfirmView(on_confirm=on_confirm, on_cancel=on_cancel))
 
@@ -321,13 +319,11 @@ class match(commands.Cog):
             embed = discord.Embed(description=stream.to_text(), color=discord.Color(7844437))
             embed.set_author(name="Streamer removed", icon_url="https://cdn.discordapp.com/emojis/809149148356018256.png")
             stream.delete()
-            message = await _interaction.original_response()
-            await message.edit(embed=embed, view=None)
+            await _interaction.message.edit(embed=embed, view=None)
         async def on_cancel(_interaction: Interaction):
             embed = discord.Embed(color=discord.Color.from_rgb(221, 46, 68))
             embed.set_author(name="User cancelled the action", icon_url="https://cdn.discordapp.com/emojis/808045512393621585.png")
-            message = await _interaction.original_response()
-            await message.edit(embed=embed, view=None)
+            await _interaction.message.edit(embed=embed, view=None)
 
         await interaction.response.send_message(embed=embed, view=ConfirmView(on_confirm=on_confirm, on_cancel=on_cancel))
 
