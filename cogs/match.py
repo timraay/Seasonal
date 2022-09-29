@@ -313,7 +313,6 @@ class match(commands.Cog):
 
         embed = discord.Embed(description=stream.to_text())
         embed.set_author(name='Remove this stream?')
-        await interaction.response.send_message(embed=embed)
 
         async def on_confirm(_interaction: Interaction):
             embed = discord.Embed(description=stream.to_text(), color=discord.Color(7844437))
