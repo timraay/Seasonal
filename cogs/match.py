@@ -293,6 +293,7 @@ class match(commands.Cog):
             await _interaction.message.edit(embed=embed, view=None)
 
         await interaction.response.send_message(embed=embed, view=ConfirmView(on_confirm=on_confirm, on_cancel=on_cancel))
+        await self._update_match(interaction, channel, send=False)
 
     @MatchCastersGroup.command(name="remove", description="Remove a caster from a match")
     @app_commands.describe(
@@ -325,6 +326,7 @@ class match(commands.Cog):
             await _interaction.message.edit(embed=embed, view=None)
 
         await interaction.response.send_message(embed=embed, view=ConfirmView(on_confirm=on_confirm, on_cancel=on_cancel))
+        await self._update_match(interaction, channel, send=False)
 
 
     async def _update_match(self, interaction: Interaction, channel: discord.TextChannel, send=True, update_image=False, update_perms=False, delay_predictions=False):
