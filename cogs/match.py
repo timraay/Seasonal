@@ -287,13 +287,13 @@ class match(commands.Cog):
             embed = discord.Embed(description=stream.to_text(), color=discord.Color(7844437))
             embed.set_author(name="Streamer added", icon_url="https://cdn.discordapp.com/emojis/809149148356018256.png")
             await _interaction.message.edit(embed=embed, view=None)
+            await self._update_match(interaction, channel, send=False)
         async def on_cancel(_interaction: Interaction):
             embed = discord.Embed(color=discord.Color.from_rgb(221, 46, 68))
             embed.set_author(name="User cancelled the action", icon_url="https://cdn.discordapp.com/emojis/808045512393621585.png")
             await _interaction.message.edit(embed=embed, view=None)
 
         await interaction.response.send_message(embed=embed, view=ConfirmView(on_confirm=on_confirm, on_cancel=on_cancel))
-        await self._update_match(interaction, channel, send=False)
 
     @MatchCastersGroup.command(name="remove", description="Remove a caster from a match")
     @app_commands.describe(
@@ -320,13 +320,13 @@ class match(commands.Cog):
             embed.set_author(name="Streamer removed", icon_url="https://cdn.discordapp.com/emojis/809149148356018256.png")
             stream.delete()
             await _interaction.message.edit(embed=embed, view=None)
+            await self._update_match(interaction, channel, send=False)
         async def on_cancel(_interaction: Interaction):
             embed = discord.Embed(color=discord.Color.from_rgb(221, 46, 68))
             embed.set_author(name="User cancelled the action", icon_url="https://cdn.discordapp.com/emojis/808045512393621585.png")
             await _interaction.message.edit(embed=embed, view=None)
 
         await interaction.response.send_message(embed=embed, view=ConfirmView(on_confirm=on_confirm, on_cancel=on_cancel))
-        await self._update_match(interaction, channel, send=False)
 
 
     async def _update_match(self, interaction: Interaction, channel: discord.TextChannel, send=True, update_image=False, update_perms=False, delay_predictions=False):
