@@ -262,7 +262,7 @@ class match(commands.Cog):
     async def casters_list(self, interaction: Interaction, channel: discord.TextChannel):
         match = MatchChannel(channel.id)
         streams = match.get_streams()
-        embed = discord.Embed(description="\n".join([s.to_text() for s in streams]) if streams else "No streams yet...")
+        embed = discord.Embed(description="\n".join([f"#{i+1}. " + s.to_text() for i, s in enumerate(streams)]) if streams else "No streams yet...")
         await interaction.response.send_message(embed=embed)
 
     @MatchCastersGroup.command(name="add", description="Add a casters to a match")
@@ -307,7 +307,7 @@ class match(commands.Cog):
             raise commands.BadArgument('Match has no streams to remove')
 
         index = int(index - 1)
-        if not 0 < index < len(streams):
+        if not 0 < index <= len(streams):
             raise commands.BadArgument('Index must be between 1 and %s' % len(streams))
 
         stream = streams[index]
