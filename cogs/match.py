@@ -307,7 +307,7 @@ class match(commands.Cog):
             raise commands.BadArgument('Match has no streams to remove')
 
         index = int(index - 1)
-        if not 0 <= index = len(streams):
+        if not 0 <= index < len(streams):
             raise commands.BadArgument('Index must be between 1 and %s' % len(streams))
 
         stream = streams[index]
