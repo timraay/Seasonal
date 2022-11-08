@@ -5,7 +5,7 @@ from discord.ext import commands, tasks
 import asyncio
 
 import datetime
-from dateutil.parser import parse
+from dateutil.parser import parse, parserinfo
 
 from lib.channels import MatchChannel, NotFound, get_all_channels
 from lib.streams import Stream, FLAGS
@@ -214,7 +214,7 @@ class match(commands.Cog):
         value="The new start time"
     )
     async def set_date(self, interaction: Interaction, channel: discord.TextChannel, value: str):
-        match_start = parse(value, fuzzy=True)
+        match_start = parse(value, parserinfo=parserinfo(dayfirst=True), fuzzy=True)
         if not match_start.tzinfo:
             match_start = match_start.replace(tzinfo=datetime.timezone.utc)
         match_start = match_start.astimezone(datetime.timezone.utc)
