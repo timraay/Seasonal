@@ -2,7 +2,7 @@
 
 ## **Prerequisites**
 - Git
-- Python 3.7 or above
+- Python 3.8 or above
 - A bot application on Discord's [developer portal](https://discord.com/developers/applications) with all Priviliged Gateway Intents enabled
 
 ```
