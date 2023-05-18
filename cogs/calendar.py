@@ -18,7 +18,17 @@ cur.execute('''CREATE TABLE IF NOT EXISTS "calendar" (
 )''')
 db.commit()
 
-SOVIET_MAPS = ["Kursk", "Stalingrad"]
+SOVIET_MAPS = ["kursk", "stalingrad", "kharkov"]
+BRITISH_MAPS = ["el alamein", "driel"]
+def get_allied_team_name(map_name: str):
+    map_name = map_name.lower().replace(" night", "")
+    if map_name in SOVIET_MAPS:
+        return "RUS"
+    elif map_name in BRITISH_MAPS:
+        return "UK"
+    else:
+        return "US"
+
 
 class CalendarCategory:
     def __init__(self, channel_id: int, message_id: int, category_id: int, guild_id: int):
@@ -53,8 +63,8 @@ class CalendarCategory:
         for match_id, match in sorted(self.matches.items(), key=lambda m: m[1].match_start if m[1].match_start else datetime(3000, 1, 1, tzinfo=timezone.utc)):
             lines = list()
             if match.vote_result:
-                faction1 = "GER" if match.vote_result.startswith("!") else ("RUS" if match.map in SOVIET_MAPS else "US")
-                faction2 = "GER" if not match.vote_result.startswith("!") else ("RUS" if match.map in SOVIET_MAPS else "US")
+                faction1 = "GER" if match.vote_result.startswith("!") else get_allied_team_name(match.map)
+                faction2 = "GER" if not match.vote_result.startswith("!") else get_allied_team_name(match.map)
                 lines.append(f"{match.get_team1(channel)} ({faction1}) vs {match.get_team2(channel)} ({faction2})")
             else:
                 lines.append(f"{match.get_team1(channel)} vs {match.get_team2(channel)}")
