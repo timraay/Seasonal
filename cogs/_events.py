@@ -3,6 +3,7 @@ from discord import Interaction, app_commands
 from discord.ext import commands, tasks
 import random
 from datetime import datetime, timedelta
+import traceback
 
 from lib import channels 
 
@@ -76,14 +77,20 @@ class _events(commands.Cog):
                 embed.set_author(icon_url=icon_url, name="An unexpected error occured!")
                 embed.description = str(error)
 
-            await interaction.response.send_message(embed=embed, ephemeral=True)
+            if isinstance(interaction, Interaction):
+                if interaction.response.is_done() or interaction.is_expired():
+                    await interaction.followup.send(embed=embed, ephemeral=True)
+                else:
+                    await interaction.response.send_message(embed=embed, ephemeral=True)
+            else:
+                await interaction.send(embed=embed)
 
-            if not isinstance(error, app_commands.CommandOnCooldown):
+            if not isinstance(error, (app_commands.CommandOnCooldown, commands.BadArgument)):
+                print("\nError in " + interaction.guild.name + " #" + interaction.channel.name + ":\n" + str(error))
                 try:
-                    print("\nError in " + interaction.guild.name + " #" + interaction.channel.name + ":\n" + str(error))
+                    raise error
                 except:
-                    print("\nFailed to log error")
-            raise error
+                    traceback.print_exc()
 
     '''
     @commands.Cog.listener()

@@ -241,8 +241,9 @@ class match(commands.Cog):
     )
     async def view(self, interaction: Interaction, channel: discord.TextChannel):
         match = MatchChannel(channel.id)
+        await interaction.response.defer(ephemeral=True, thinking=True)
         payload = await match.to_payload(interaction, render_images=True)
-        await interaction.response.send_message(ephemeral=True, **payload)
+        await interaction.followup.send(ephemeral=True, **payload)
 
     async def _set_match_prop(self, interaction: Interaction, channel: discord.TextChannel, prop_name: str, value, display):
         match = MatchChannel(channel.id)
@@ -462,12 +463,13 @@ class match(commands.Cog):
         channel="The match channel",
     )
     async def show(self, interaction: Interaction, channel: discord.TextChannel):
+        await interaction.response.defer(ephemeral=True, thinking=True)
         await self._update_match(interaction, channel, update_image=True, update_perms=True)
 
         embed = discord.Embed(color=discord.Color(7844437))
         embed.set_author(name="Match revealed", icon_url="https://cdn.discordapp.com/emojis/809149148356018256.png")
         embed.description = f"{channel.mention} is now visible publically, if it wasn't already."
-        await interaction.response.send_message(embed=embed)                        
+        await interaction.followup.send(embed=embed, ephemeral=True)
     
     @MatchGroup.command(name="hide", description="Stop showing a match in its channel")
     @app_commands.describe(
