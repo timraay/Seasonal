@@ -3,6 +3,9 @@ from discord.ext import commands
 
 from datetime import datetime, timezone
 from random import randint
+import re
+
+from typing import Dict, List
 
 from lib.vote import MapVote
 from lib.streams import Stream
@@ -47,6 +50,31 @@ def get_all_channels(guild_id):
     cur.execute('SELECT channel_id FROM channels WHERE guild_id = ?', (guild_id,))
     res = cur.fetchall()
     return [MatchChannel(channel_id[0]) for channel_id in res]
+
+def get_predictions(guild_id: int):
+    cur.execute('SELECT predictions_team1, predictions_team2, result FROM channels WHERE guild_id = ? AND result IS NOT NULL', (guild_id,))
+
+    results: Dict[int, List[int]] = dict()
+    for t1_pred, t2_pred, result in cur.fetchall():
+        t1_pred = [int(user_id) for user_id in t1_pred.split(',') if user_id]
+        t2_pred = [int(user_id) for user_id in t2_pred.split(',') if user_id]
+
+        match = re.match(r"(\d) *[-:] *(\d)", result)
+        if not match:
+            continue
+        t1_score, t2_score = [int(score) for score in match.groups()]
+        winner = t1_score > t2_score
+
+        for won, preds in ((winner, t1_pred), (not winner, t2_pred)):
+            for pred in preds:
+                scores = results.setdefault(pred, [0, 0])
+                if won:
+                    scores[0] += 1
+                else:
+                    scores[1] += 1
+
+    return results
+
 
 class MatchChannel:
     def __init__(self, channel_id):
