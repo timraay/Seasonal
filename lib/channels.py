@@ -38,6 +38,7 @@ cur.execute("""CREATE TABLE IF NOT EXISTS "channels" (
 	"predictions_team2"	TEXT,
 	"predictions_team1_emoji"	TEXT,
 	"predictions_team2_emoji"	TEXT,
+	"stream_delay"	INTEGER,
 	PRIMARY KEY("channel_id")
 );""")
 db.commit()
@@ -54,10 +55,9 @@ class MatchChannel:
         if not res: raise NotFound("There is no match attached to channel %s" % channel_id)
 
         (self.creation_time, self.guild_id, self.channel_id, self.message_id, self.title, self.desc, self.match_start,
-        self.map, self.team1, self.team2, self.banner_url, self.has_vote, self.has_predictions, self.result,
-        self.vote_result, self.vote_coinflip_option, self.vote_coinflip,
-        self.vote_server_option, self.vote_server, self.vote_first_ban, self.vote_progress,
-        self.predictions_team1, self.predictions_team2, self.predictions_team1_emoji, self.predictions_team2_emoji) = res
+        self.map, self.team1, self.team2, self.banner_url, self.has_vote, self.has_predictions, self.result, self.vote_result,
+        self.vote_coinflip_option, self.vote_coinflip, self.vote_server_option, self.vote_server, self.vote_first_ban, self.vote_progress,
+        self.predictions_team1, self.predictions_team2, self.predictions_team1_emoji, self.predictions_team2_emoji, self.stream_delay) = res
 
         self.creation_time = datetime.fromisoformat(self.creation_time) if self.creation_time else datetime.now()
         self.match_start = datetime.fromisoformat(self.match_start) if self.match_start else None
@@ -88,11 +88,12 @@ class MatchChannel:
         predictions_team2 = ''
         predictions_team1_emoji = get_config()['visuals']['DefaultTeam1Emoji']
         predictions_team2_emoji = get_config()['visuals']['DefaultTeam2Emoji']
+        stream_delay = 0
         cur.execute(
-            "INSERT INTO channels VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "INSERT INTO channels VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (creation_time, guild_id, channel_id, message_id, title, desc, match_start, map, team1, team2, banner_url, int(has_vote), int(has_predictions), result,
             vote_result, vote_coinflip_option, vote_coinflip, vote_server_option, vote_server, vote_first_ban, vote_progress,
-            predictions_team1, predictions_team2, predictions_team1_emoji, predictions_team2_emoji)
+            predictions_team1, predictions_team2, predictions_team1_emoji, predictions_team2_emoji, stream_delay)
         )
         db.commit()
         return cls(channel_id)
@@ -101,15 +102,14 @@ class MatchChannel:
         self.vote_progress = ','.join(self.vote.progress)
         cur.execute("""UPDATE channels SET
         creation_time = ?, message_id = ?, title = ?, desc = ?, match_start = ?, map = ?, team1 = ?, team2 = ?,
-        banner_url = ?, has_vote = ?, has_predictions = ?, result = ?,
-        vote_result = ?, vote_coinflip_option = ?, vote_coinflip = ?, vote_server_option = ?,
-        vote_server = ?, vote_first_ban = ?, vote_progress = ?, predictions_team1 = ?,
-        predictions_team2 = ?, predictions_team1_emoji = ?, predictions_team2_emoji = ? WHERE channel_id = ?""",
+        banner_url = ?, has_vote = ?, has_predictions = ?, result = ?, vote_result = ?, vote_coinflip_option = ?,
+        vote_coinflip = ?, vote_server_option = ?, vote_server = ?, vote_first_ban = ?, vote_progress = ?, predictions_team1 = ?,
+        predictions_team2 = ?, predictions_team1_emoji = ?, predictions_team2_emoji = ?, stream_delay = ? WHERE channel_id = ?""",
         (self.creation_time.isoformat(), self.message_id, self.title, self.desc, self.match_start.isoformat() if isinstance(self.match_start, datetime) else None,
         self.map, self.team1, self.team2, self.banner_url, int(self.has_vote), int(self.has_predictions), self.result,
         self.vote_result, self.vote_coinflip_option, self.vote_coinflip, self.vote_server_option, self.vote_server, self.vote_first_ban, self.vote_progress,
         ','.join(self.predictions_team1), ','.join(self.predictions_team2), self.predictions_team1_emoji, self.predictions_team2_emoji,
-        self.channel_id))
+        self.stream_delay, self.channel_id))
         db.commit()
 
     def delete(self):
@@ -190,14 +190,25 @@ class MatchChannel:
                 embed.add_field(inline=True, name=f'🔴 Team 2 ({"Allies" if self.vote_result.startswith("!") else "Axis"})', value=team2)
             embed.add_field(inline=True, name='🗺️ Map', value=str(self.map) if self.vote_result else "Ban phase ongoing")
 
-        if not self.match_start: embed.add_field(inline=True, name='📅 Match Start', value='Unknown')
-        else: embed.add_field(inline=True, name='📅 Match Start', value=f'<t:{int(self.match_start.timestamp())}:F>')
+        if not self.match_start:
+            embed.add_field(inline=True, name='📅 Match Start', value='Unknown')
+        else:
+            embed.add_field(inline=True, name='📅 Match Start', value=f'<t:{int(self.match_start.timestamp())}:F>')
 
-        if self.result: embed.add_field(inline=True, name='🎯 Result', value=f"||{str(self.result)}||")
+        if self.result:
+            embed.add_field(inline=True, name='🎯 Result', value=f"||{str(self.result)}||")
 
         streams = self.get_streams()
-        if streams: embed.add_field(inline=False, name='🎙️ Streamers', value="\n".join([stream.to_text() for stream in streams]))
-        if self.banner_url: embed.set_image(url=self.banner_url)
+        if streams:
+            embed.add_field(
+                name=f'🎙️ Streamers (+{self.stream_delay} min. delay)' if self.stream_delay else '🎙️ Streamers',
+                value="\n".join([stream.to_text() for stream in streams]),
+                inline=False,
+            )
+
+        if self.banner_url:
+            embed.set_image(url=self.banner_url)
+
         return embed
     async def to_vote_embed(self, ctx, render_images=False):
         # Map vote embed

@@ -95,6 +95,10 @@ The bot uses mostly slash commands, however not all commands have been migrated 
 > *Removes a caster from a match by index*
 > - The index starts at 1, not 0. You can view the index with the `/match casters <#channel> list` command.
 > - You will be asked to confirm before the caster is removed.
+> 
+> `/match casters <#channel> set_delay <delay>`
+> 
+> *Sets the streaming delay in minutes that casters will have*
 
 ## The `s!calendar` command
 

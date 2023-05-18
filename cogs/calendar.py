@@ -76,7 +76,9 @@ class CalendarCategory:
 
             streams = match.get_streams()
             if streams:
-                lines += [f"\🎙️ " + s.to_text(True) for s in streams]
+                lines += [f"\🎙️ {s.to_text(True)}" for s in streams]
+                if match.stream_delay:
+                    lines.append(f"\🎙️ (+{match.stream_delay} min. delay)")
             # else:
             #     lines.append("> \🎙️ *No cast...*"),
             

@@ -388,6 +388,13 @@ class match(commands.Cog):
 
         await interaction.response.send_message(embed=embed, view=ConfirmView(on_confirm=on_confirm, on_cancel=on_cancel))
 
+    @MatchCastersGroup.command(name="set_delay", description="Set the stream delay")
+    @app_commands.describe(
+        channel="The match channel",
+        delay="The delay in minutes, 0 to remove"
+    )
+    async def set_stream_delay(self, interaction: Interaction, channel: discord.TextChannel, delay: int):
+        await self._set_match_prop(interaction, channel, "stream_delay", delay, f"{delay} minutes")
 
     async def _update_match(self, interaction: Interaction, channel: discord.TextChannel, send=True, update_image=False, update_perms=False, delay_predictions=False):
         match = MatchChannel(channel.id)
