@@ -27,7 +27,6 @@ cur.execute("""CREATE TABLE IF NOT EXISTS "channels" (
 	"has_vote"	INTEGER,
 	"has_predictions"	INTEGER,
 	"result"	TEXT,
-	"vote_message_id"	INTEGER,
 	"vote_result"	TEXT,
 	"vote_coinflip_option"	INTEGER,
 	"vote_coinflip"	INTEGER,
@@ -35,7 +34,6 @@ cur.execute("""CREATE TABLE IF NOT EXISTS "channels" (
 	"vote_server"	TEXT,
 	"vote_first_ban"	INTEGER,
 	"vote_progress"	TEXT,
-	"predictions_message_id"	INTEGER,
 	"predictions_team1"	TEXT,
 	"predictions_team2"	TEXT,
 	"predictions_team1_emoji"	TEXT,
@@ -57,8 +55,8 @@ class MatchChannel:
 
         (self.creation_time, self.guild_id, self.channel_id, self.message_id, self.title, self.desc, self.match_start,
         self.map, self.team1, self.team2, self.banner_url, self.has_vote, self.has_predictions, self.result,
-        self.vote_message_id, self.vote_result, self.vote_coinflip_option, self.vote_coinflip,
-        self.vote_server_option, self.vote_server, self.vote_first_ban, self.vote_progress, self.predictions_message_id,
+        self.vote_result, self.vote_coinflip_option, self.vote_coinflip,
+        self.vote_server_option, self.vote_server, self.vote_first_ban, self.vote_progress,
         self.predictions_team1, self.predictions_team2, self.predictions_team1_emoji, self.predictions_team2_emoji) = res
 
         self.creation_time = datetime.fromisoformat(self.creation_time) if self.creation_time else datetime.now()
@@ -79,7 +77,6 @@ class MatchChannel:
         if match_start and not match_start.tzinfo:
             raise ValueError('match_start should be an aware Datetime object, not naïve')
         message_id = 0
-        vote_message_id = 0
         vote_result = None
         vote_coinflip_option = 0
         vote_coinflip = None
@@ -87,7 +84,6 @@ class MatchChannel:
         vote_server = None
         vote_first_ban = None
         vote_progress = None
-        predictions_message_id = 0
         predictions_team1 = ''
         predictions_team2 = ''
         predictions_team1_emoji = get_config()['visuals']['DefaultTeam1Emoji']
@@ -95,8 +91,8 @@ class MatchChannel:
         cur.execute(
             "INSERT INTO channels VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (creation_time, guild_id, channel_id, message_id, title, desc, match_start, map, team1, team2, banner_url, int(has_vote), int(has_predictions), result,
-            vote_message_id, vote_result, vote_coinflip_option, vote_coinflip, vote_server_option, vote_server, vote_first_ban, vote_progress,
-            predictions_message_id, predictions_team1, predictions_team2, predictions_team1_emoji, predictions_team2_emoji)
+            vote_result, vote_coinflip_option, vote_coinflip, vote_server_option, vote_server, vote_first_ban, vote_progress,
+            predictions_team1, predictions_team2, predictions_team1_emoji, predictions_team2_emoji)
         )
         db.commit()
         return cls(channel_id)
@@ -105,14 +101,14 @@ class MatchChannel:
         self.vote_progress = ','.join(self.vote.progress)
         cur.execute("""UPDATE channels SET
         creation_time = ?, message_id = ?, title = ?, desc = ?, match_start = ?, map = ?, team1 = ?, team2 = ?,
-        banner_url = ?, has_vote = ?, has_predictions = ?, result = ?, vote_message_id = ?,
+        banner_url = ?, has_vote = ?, has_predictions = ?, result = ?,
         vote_result = ?, vote_coinflip_option = ?, vote_coinflip = ?, vote_server_option = ?,
-        vote_server = ?, vote_first_ban = ?, vote_progress = ?, predictions_message_id = ?, predictions_team1 = ?,
+        vote_server = ?, vote_first_ban = ?, vote_progress = ?, predictions_team1 = ?,
         predictions_team2 = ?, predictions_team1_emoji = ?, predictions_team2_emoji = ? WHERE channel_id = ?""",
         (self.creation_time.isoformat(), self.message_id, self.title, self.desc, self.match_start.isoformat() if isinstance(self.match_start, datetime) else None,
-        self.map, self.team1, self.team2, self.banner_url, int(self.has_vote), int(self.has_predictions), self.result, self.vote_message_id,
+        self.map, self.team1, self.team2, self.banner_url, int(self.has_vote), int(self.has_predictions), self.result,
         self.vote_result, self.vote_coinflip_option, self.vote_coinflip, self.vote_server_option, self.vote_server, self.vote_first_ban, self.vote_progress,
-        self.predictions_message_id, ','.join(self.predictions_team1), ','.join(self.predictions_team2), self.predictions_team1_emoji, self.predictions_team2_emoji,
+        ','.join(self.predictions_team1), ','.join(self.predictions_team2), self.predictions_team1_emoji, self.predictions_team2_emoji,
         self.channel_id))
         db.commit()
 

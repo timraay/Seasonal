@@ -211,17 +211,12 @@ class match(commands.Cog):
             embed.set_author(name="Match removed", icon_url="https://cdn.discordapp.com/emojis/809149148356018256.png")
             match.delete()
 
-            try: msg = await channel.fetch_message(match.message_id)
-            except discord.NotFound: pass
-            else: await msg.delete()
-
-            try: msg = await channel.fetch_message(match.vote_message_id)
-            except discord.NotFound: pass
-            else: await msg.delete()
-
-            try: msg = await channel.fetch_message(match.predictions_message_id)
-            except discord.NotFound: pass
-            else: await msg.delete()
+            try:
+                msg = await channel.fetch_message(match.message_id)
+            except discord.NotFound:
+                pass
+            else:
+                await msg.delete()
             
             message = await _interaction.original_response()
             await message.edit(embed=embed, view=None)
@@ -474,17 +469,12 @@ class match(commands.Cog):
     async def hide(self, interaction: Interaction, channel: discord.TextChannel):
         match = MatchChannel(channel.id)
 
-        try: msg = await channel.fetch_message(match.message_id)
-        except discord.NotFound: pass
-        else: await msg.delete()
-
-        try: msg = await channel.fetch_message(match.vote_message_id)
-        except discord.NotFound: pass
-        else: await msg.delete()
-
-        try: msg = await channel.fetch_message(match.predictions_message_id)
-        except discord.NotFound: pass
-        else: await msg.delete()
+        try:
+            msg = await channel.fetch_message(match.message_id)
+        except discord.NotFound:
+            pass
+        else:
+            await msg.delete()
 
         embed = discord.Embed(color=discord.Color(7844437))
         embed.set_author(name="Match hidden", icon_url="https://cdn.discordapp.com/emojis/809149148356018256.png")
@@ -515,10 +505,8 @@ class match(commands.Cog):
     async def mapvote_disable(self, interaction: Interaction, channel: discord.TextChannel):
         match = MatchChannel(channel.id)
         match.has_vote = False
-        if match.vote_message_id:
-            try: msg = await channel.fetch_message(match.vote_message_id)
-            except: pass
-            else: await msg.delete()
+        if match.message_id:
+            await self._update_match(interaction, channel, send=False)
         await self._after_setting_change(interaction, match, channel, "Disabled map voting")
     @MatchMapvoteGroup.command(name="coinflip")
     @app_commands.describe(
@@ -695,10 +683,8 @@ class match(commands.Cog):
     async def predictions_disable(self, interaction: Interaction, channel: discord.TextChannel):
         match = MatchChannel(channel.id)
         match.has_predictions = False
-        if match.predictions_message_id:
-            try: msg = await channel.fetch_message(match.predictions_message_id)
-            except: pass
-            else: await msg.delete()
+        if match.message_id:
+            await self._update_match(interaction, channel, send=False)
         await self._after_setting_change(interaction, match, channel, "Disabled predictions")
     @MatchPredictionsGroup.command(name="reset")
     @app_commands.describe(
