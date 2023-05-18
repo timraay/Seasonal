@@ -158,14 +158,23 @@ class MatchChannel:
     def get_streams(self):
         return Stream.in_channel(self.channel_id)
 
-    async def to_embed(self, ctx):
-        embeds = list()
+    async def to_payload(self, ctx, render_images=False, delay_predictions=False):
+        data = {
+            'embeds': []
+        }
+        data['embeds'].append(await self.to_match_embed(ctx))
 
-        embeds.append(await self.to_match_embed(ctx))
-        if self.has_vote: embeds.append(await self.to_vote_embed(ctx))
-        if self.has_predictions: embeds.append(await self.to_predictions_embed(ctx))
+        if self.has_vote:
+            embed, file = await self.to_vote_embed(ctx, render_images)
+            data['embeds'].append(embed)
+            if render_images:
+                data['file'] = file
 
-        return embeds
+        if self.should_show_predictions():
+            embed = await self.to_predictions_embed(ctx, delay_predictions)
+            data['embeds'].append(embed)
+
+        return data
     async def to_match_embed(self, ctx):
         if not self.has_vote:
             embed = discord.Embed(title=self.title, description=self.desc if self.desc else None)
@@ -194,7 +203,7 @@ class MatchChannel:
         if streams: embed.add_field(inline=False, name='🎙️ Streamers', value="\n".join([stream.to_text() for stream in streams]))
         if self.banner_url: embed.set_image(url=self.banner_url)
         return embed
-    async def to_vote_embed(self, ctx):
+    async def to_vote_embed(self, ctx, render_images=False):
         # Map vote embed
         embed = discord.Embed(title='Map Ban Phase')
 
@@ -242,11 +251,16 @@ class MatchChannel:
 
         self.vote.team1_name = self.get_team1(ctx, mention=False)
         self.vote.team2_name = self.get_team2(ctx, mention=False)
-        self.vote.render()
+
+        if render_images:
+            img = self.vote.render()
+            file = discord.File(img, filename='output.png')
+        else:
+            file = None
         embed.set_image(url='attachment://output.png')
 
-        return embed
-    async def to_predictions_embed(self, ctx):
+        return embed, file
+    async def to_predictions_embed(self, ctx, delay_predictions=False):
         # Predictions
         embed = discord.Embed(title='Match Predictions')
         embed.description = f'_ _\n{self.predictions_team1_emoji} {self.get_team1(ctx)} (**{len(self.predictions_team1)}** votes)\n{self.predictions_team2_emoji} {self.get_team2(ctx)} (**{len(self.predictions_team2)}** votes)'
@@ -254,11 +268,24 @@ class MatchChannel:
         if not self.should_have_predictions():
             embed.set_footer(text='Voting has ended')
         elif self.match_start:
-            embed.set_footer(text='Voting ends at ' + self.match_start.strftime('%A %B %d, %H:%M %p UTC').replace(" 0", " "))
+            if delay_predictions:
+                embed.set_footer(text="Predictions will be available\nin approx. 10 minutes")
+            else:
+                embed.set_footer(text='Voting ends at ' + self.match_start.strftime('%A %B %d, %H:%M %p UTC').replace(" 0", " "))
         return embed
     
     def should_have_predictions(self):
-        return not (self.result or (self.match_start and self.match_start < datetime.now(timezone.utc)))
+        return (
+            self.should_show_predictions()
+            and not self.result
+            and (
+                not self.match_start
+                or datetime.now(timezone.utc) > self.match_start
+            )
+        )
+
+    def should_show_predictions(self):
+        return self.has_predictions and not (self.has_vote and not self.vote_result)
 
     def get_prediction_of_user(self, user_id):
         user_id = str(user_id)

@@ -2,6 +2,8 @@ import discord
 from discord.ext import commands
 from asyncio import TimeoutError
 from configparser import ConfigParser
+from functools import wraps
+import asyncio
 
 def int_to_emoji(value: int):
     if value == 0: return "0️⃣"
@@ -140,6 +142,25 @@ async def verify_reactions(message: discord.Message, emojis: list, whitelisted_i
             async for user in reaction.users():
                 if user.id not in whitelisted_ids:
                     await message.remove_reaction(emoji, user)
+
+
+def retry(times: int, delay: float = None):
+    def decorator(func):
+        @wraps(func)
+        async def wrapper(*args, **kwargs):
+            for i in range(times):
+                try:
+                    res = await func(*args, **kwargs)
+                except:
+                    if times - 1 == i:
+                        raise
+                    elif delay:
+                        await asyncio.sleep(delay)
+                else:
+                    return res
+        return wrapper
+    return decorator
+
 
 CONFIG = {}
 def get_config() -> ConfigParser:

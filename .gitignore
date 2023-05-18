@@ -1,6 +1,7 @@
 token.txt
 seasonal.db
 output.png
+analyze/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -1,7 +1,7 @@
 from copy import deepcopy
 from pathlib import Path
 import imgkit
-from io import StringIO
+from io import BytesIO
 
 from utils import get_config
 
@@ -177,6 +177,10 @@ class MapVote:
 
         html = HTML_DOC.format(**statuses)
         imgkit.from_string(html, 'output.png', config=config, css=Path(__location__+'/vote/table.css'), options={'format': 'png', 'quiet': ''})
+        with open('output.png', 'rb') as f:
+            img = BytesIO(f.read())
+
+        return img
 
 
 

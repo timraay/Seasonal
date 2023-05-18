@@ -1,4 +1,4 @@
-from typing import Callable
+from typing import Callable, Optional
 import discord
 from discord import app_commands, ui, Interaction
 from discord.ext import commands, tasks
@@ -11,7 +11,7 @@ from lib.channels import MatchChannel, NotFound, get_all_channels
 from lib.streams import Stream, FLAGS
 from lib.vote import MapVote, MAPS
 from cogs._events import CustomException
-from utils import get_config
+from utils import get_config, retry
 
 
 CHANNEL_EMOJIS = {
@@ -47,6 +47,76 @@ class ConfirmView(ui.View):
     async def _on_cancel(self, interaction: Interaction):
         await self.on_cancel(interaction)
 
+
+class PredictionsView(ui.View):
+    def __init__(self, match: MatchChannel):
+        super().__init__(timeout=None)
+        self.match = match
+    
+        self.add_item(CallableButton(self.on_press_1, emoji=match.predictions_team1_emoji, style=discord.ButtonStyle.primary))
+        self.add_item(CallableButton(self.on_press_2, emoji=match.predictions_team2_emoji, style=discord.ButtonStyle.primary))
+        
+        self.add_item(CallableButton(self.user_make_prediction, emoji="❓", style=discord.ButtonStyle.gray))
+    
+    async def on_press_1(self, interaction: Interaction):
+        return await self.user_make_prediction(interaction, 1)
+    async def on_press_2(self, interaction: Interaction):
+        return await self.user_make_prediction(interaction, 2)
+    
+    async def user_make_prediction(self, interaction: Interaction, vote: int = None):
+        # Has the match started already?
+        if not self.match.should_have_predictions():
+            await interaction.response.send_message("Sorry, but predictions are closed! You can no longer vote.", ephemeral=True)
+            payload = await self.match.to_payload(interaction)
+            await interaction.message.edit(view=None, **payload)
+        
+        else:
+            id_s = str(interaction.user.id)
+            cur_vote_id = self.match.get_prediction_of_user(interaction.user.id)
+
+            if not vote:
+                if cur_vote_id:
+                    cur_vote = self.match.get_team1(interaction, False) if cur_vote_id == 1 else self.match.get_team2(interaction, False)
+                    embed = discord.Embed(color=discord.Color(7844437))
+                    embed.set_author(name=f"Your current vote is {cur_vote}!", icon_url="https://cdn.discordapp.com/emojis/809149148356018256.png")
+                    embed.description = "To change your vote you can always press one of the buttons."
+                    await interaction.response.send_message(embed=embed, ephemeral=True)
+                    return
+
+                else:
+                    embed = discord.Embed(
+                        title = "You have not yet voted!",
+                        description = "As long as the match has not started yet you can cast your vote, or update your existing vote, by pressing one of the buttons."
+                    )
+                    await interaction.response.send_message(embed=embed, ephemeral=True)
+                return
+
+            elif vote == 1:
+                if id_s in self.match.predictions_team1:
+                    pass
+                elif id_s in self.match.predictions_team2:
+                    self.match.predictions_team1.append(id_s)
+                    self.match.predictions_team2.remove(id_s)
+                else:
+                    self.match.predictions_team1.append(id_s)
+
+            elif vote == 2:
+                if id_s in self.match.predictions_team2:
+                    pass
+                elif id_s in self.match.predictions_team1:
+                    self.match.predictions_team2.append(id_s)
+                    self.match.predictions_team1.remove(id_s)
+                else:
+                    self.match.predictions_team2.append(id_s)
+
+            new_vote = self.match.get_team1(interaction, False) if vote == 1 else self.match.get_team2(interaction, False)
+            embed = discord.Embed(color=discord.Color(7844437))
+            embed.set_author(name=f"Voted for {new_vote}!", icon_url="https://cdn.discordapp.com/emojis/809149148356018256.png")
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+
+            self.match.save()
+            payload = await self.match.to_payload(interaction)
+            await interaction.message.edit(**payload)
 
 class match(commands.Cog):
     def __init__(self, bot):
@@ -118,7 +188,7 @@ class match(commands.Cog):
         else: raise commands.BadArgument('A match is already linked with this channel.')
         MatchChannel.new(channel=channel, title=title, desc=description, team1=team1.id if team1 else None, team2=team2.id if team1 else None, has_vote=enable_voting, has_predictions=enable_voting)
         overwrites = channel.overwrites
-        overwrites[interaction.channel.guild.default_role] = discord.PermissionOverwrite(view_channel=False, send_messages=False)
+        overwrites[interaction.channel.guild.default_role].update(send_messages=False)
         await channel.edit(overwrites=overwrites)
 
         embed = discord.Embed(color=discord.Color(7844437))
@@ -176,12 +246,8 @@ class match(commands.Cog):
     )
     async def view(self, interaction: Interaction, channel: discord.TextChannel):
         match = MatchChannel(channel.id)
-        embeds = await match.to_embed(interaction)
-        
-        if match.has_vote:
-            await interaction.response.send_message(embeds=embeds, file=discord.File('output.png'), ephemeral=True)
-        else:
-            await interaction.response.send_message(embeds=embeds, ephemeral=True)
+        payload = await match.to_payload(interaction, render_images=True)
+        await interaction.response.send_message(ephemeral=True, **payload)
 
     async def _set_match_prop(self, interaction: Interaction, channel: discord.TextChannel, prop_name: str, value, display):
         match = MatchChannel(channel.id)
@@ -330,79 +396,24 @@ class match(commands.Cog):
 
     async def _update_match(self, interaction: Interaction, channel: discord.TextChannel, send=True, update_image=False, update_perms=False, delay_predictions=False):
         match = MatchChannel(channel.id)
-        embeds = await match.to_embed(interaction)
+        payload = await match.to_payload(interaction, update_image, delay_predictions)
+
+        if match.should_have_predictions() and not delay_predictions:
+            payload['view'] = PredictionsView(match)
+        else:
+            payload['view'] = None
 
         try:
-            msg = await channel.fetch_message(match.message_id)
+            msg = await retry(times=2)(channel.fetch_message)(match.message_id)
         except discord.NotFound:
             if send:
-                msg = await channel.send(embed=embeds.pop(0))
+                msg = await channel.send(**payload)
                 match.message_id = msg.id
                 match.save()
         else:
-            await msg.edit(embed=embeds.pop(0))
-        
-        if match.has_vote:
-            try:
-                msg = await channel.fetch_message(match.vote_message_id)
-            except discord.NotFound:
-                if send:
-                    msg = await channel.send(embed=embeds.pop(0), file=discord.File('output.png'))
-                    match.vote_message_id = msg.id
-                    match.save()
-            else:
-                if update_image:
-                    await msg.delete()
-                    msg = await channel.send(embed=embeds.pop(0), file=discord.File('output.png'))
-                    match.vote_message_id = msg.id
-                    match.save()
-                else:
-                    await msg.edit(embed=embeds.pop(0))
-
-        elif match.vote_message_id:
-            try: msg = await channel.fetch_message(match.vote_message_id)
-            except discord.NotFound: pass
-            else: await msg.delete()
-            finally:
-                match.vote_message_id = 0
-                match.save()
-
-        if match.has_predictions and not (match.has_vote and not match.vote_result):
-            try:
-                msg = await channel.fetch_message(match.predictions_message_id)
-            except discord.NotFound:
-                if send:
-                    embed = embeds.pop(0)
-                    footer = getattr(embed, '_footer', None)
-                    if delay_predictions and match.should_have_predictions():
-                        embed.set_footer(text="Predictions will be available\nin approx. 10 minutes")
-                    msg = await channel.send(embed=embed)
-                    match.predictions_message_id = msg.id
-                    match.save()
-
-                    if match.should_have_predictions():
-                        if delay_predictions:
-                            await asyncio.sleep(10*60)
-                            if footer:
-                                embed._footer = footer
-                            else:
-                                embed.remove_footer()
-                            await msg.edit(embed=embed, view=self._get_predictions_view(match))
-                        else:
-                            await msg.edit(view=self._get_predictions_view(match))
-            else:
-                embed = embeds.pop(0)
-                if match.should_have_predictions():
-                    await msg.edit(embed=embed, view=self._get_predictions_view(match))
-                else:
-                    await msg.edit(embed=embed)
-        elif match.predictions_message_id:
-            try: msg = await channel.fetch_message(match.predictions_message_id)
-            except discord.NotFound: pass
-            else: await msg.delete()
-            finally:
-                match.predictions_message_id = 0
-                match.save()
+            if 'file' in payload:
+                payload['attachments'] = [payload.pop('file')]
+            await msg.edit(**payload)
 
         if update_perms:
             overwrites = channel.overwrites
@@ -413,15 +424,18 @@ class match(commands.Cog):
             if match.has_vote:
                 try: rep1 = await commands.RoleConverter().convert(interaction, str(match.team1))
                 except: pass
-                else: overwrites[rep1] = discord.PermissionOverwrite(send_messages=None if match.vote_result else True, view_channel=None if defaults.view_channel else True)
+                else: overwrites[rep1] = discord.PermissionOverwrite(send_messages=None if match.vote_result else True, view_channel=True)
                 try: rep2 = await commands.RoleConverter().convert(interaction, str(match.team2))
                 except: pass
-                else: overwrites[rep2] = discord.PermissionOverwrite(send_messages=None if match.vote_result else True, view_channel=None if defaults.view_channel else True)
+                else: overwrites[rep2] = discord.PermissionOverwrite(send_messages=None if match.vote_result else True, view_channel=True)
             
             await channel.edit(overwrites=overwrites)
         
         await self._update_channel_name(channel)
-        
+
+        if match.should_have_predictions() and delay_predictions:
+            await asyncio.sleep(10*60)
+            await self._update_match(interaction, channel, send=False, delay_predictions=False)
                 
     async def _update_channel_name(self, channel: discord.TextChannel):
         match = MatchChannel(channel.id)
@@ -440,34 +454,13 @@ class match(commands.Cog):
         if emoji + channel_name != channel.name:
             await channel.edit(name=emoji+channel_name)
 
-        
-    async def _update_predictions(self, interaction: Interaction, channel: discord.TextChannel):
-        match = MatchChannel(channel.id)
-        embed = await match.to_predictions_embed(interaction)
-        try:
-            msg = await channel.fetch_message(match.predictions_message_id)
-        except discord.NotFound:
-            view = self._get_predictions_view(match)
-            msg = await channel.send(embed=embed, view=view)
-            match.predictions_message_id = msg.id
-            match.save()
-        else:
-            await msg.edit(embed=embed)
 
-        if match.should_have_predictions():
-            if not msg.components:
-                view = self._get_predictions_view(match)
-                await msg.edit(view=view)
-        else:
-            if msg.components:
-                await msg.edit(view=ui.View())
-    
     @MatchGroup.command(name="reveal", description="Start showing the match in its channel")
     @app_commands.describe(
         channel="The match channel",
     )
     async def show(self, interaction: Interaction, channel: discord.TextChannel):
-        await self._update_match(interaction, channel, update_perms=True)
+        await self._update_match(interaction, channel, update_image=True, update_perms=True)
 
         embed = discord.Embed(color=discord.Color(7844437))
         embed.set_author(name="Match revealed", icon_url="https://cdn.discordapp.com/emojis/809149148356018256.png")
@@ -479,9 +472,19 @@ class match(commands.Cog):
         channel="The match channel",
     )
     async def hide(self, interaction: Interaction, channel: discord.TextChannel):
-        overwrites = channel.overwrites
-        overwrites[interaction.channel.guild.default_role].update(view_channel=False, send_messages=False)
-        await channel.edit(overwrites=overwrites)
+        match = MatchChannel(channel.id)
+
+        try: msg = await channel.fetch_message(match.message_id)
+        except discord.NotFound: pass
+        else: await msg.delete()
+
+        try: msg = await channel.fetch_message(match.vote_message_id)
+        except discord.NotFound: pass
+        else: await msg.delete()
+
+        try: msg = await channel.fetch_message(match.predictions_message_id)
+        except discord.NotFound: pass
+        else: await msg.delete()
 
         embed = discord.Embed(color=discord.Color(7844437))
         embed.set_author(name="Match hidden", icon_url="https://cdn.discordapp.com/emojis/809149148356018256.png")
@@ -596,7 +599,7 @@ class match(commands.Cog):
         await self._after_setting_change(interaction, match, channel, "Reset map vote")
 
     @commands.Cog.listener()
-    async def on_message(self, message):
+    async def on_message(self, message: discord.Message):
         # Is not self?
         if message.author.id == self.bot.user.id: return
 
@@ -632,8 +635,8 @@ class match(commands.Cog):
                         match.save()
                         
                         # Update message
-                        interaction = await self.bot.get_context(message)
-                        await self._update_match(interaction, message.channel, update_image=False)
+                        ctx = await self.bot.get_context(message)
+                        await self._update_match(ctx, message.channel, update_image=False)
 
                     else:
                         # Undo last ban
@@ -660,9 +663,10 @@ class match(commands.Cog):
                             match.ban_map(team=team_index, faction=faction, map=map)
                         
                         # Update message
-                        interaction = await self.bot.get_context(message)
-                        await self._update_match(interaction, message.channel, update_image=True, update_perms=True if match.vote_result else False, delay_predictions=False)
+                        ctx = await self.bot.get_context(message)
+                        await self._update_match(ctx, message.channel, update_image=True, update_perms=True if match.vote_result else False, delay_predictions=False)
                         # If delayed predictions are ever turned on again, remember to fix the last input to be deleted before the 10min delay
+                        # Edit: Remember to test it altogether because I changed some stuff
 
             except CustomException as e:
                 embed = discord.Embed(color=discord.Color.from_rgb(221, 46, 68))
@@ -708,81 +712,6 @@ class match(commands.Cog):
         match.predictions_team2_emoji = get_config()['visuals']['DefaultTeam2Emoji']
         await self._after_setting_change(interaction, match, channel, "Reset predictions")
 
-    def _get_predictions_view(self, match: MatchChannel):
-        view = ui.View(timeout=None)
-        async def on_press_1(interaction: Interaction):
-            await self.user_make_prediction(interaction, 1)
-        async def on_press_2(interaction: Interaction):
-            await self.user_make_prediction(interaction, 2)
-        
-
-        view.add_item(CallableButton(on_press_1, emoji=match.predictions_team1_emoji, style=discord.ButtonStyle.primary))
-        view.add_item(CallableButton(on_press_2, emoji=match.predictions_team2_emoji, style=discord.ButtonStyle.primary))
-        
-        view.add_item(CallableButton(self.user_make_prediction, emoji="❓", style=discord.ButtonStyle.gray))
-
-        return view
-
-    async def user_make_prediction(self, interaction: Interaction, vote: int = None):
-        match = MatchChannel(interaction.channel_id)
-
-        # Has the match started already?
-        if not match.should_have_predictions():
-            await interaction.response.send_message("Sorry, but predictions are closed! You can no longer vote.", ephemeral=True)
-            embed = await match.to_predictions_embed(interaction)
-            await interaction.message.edit(embed=embed, view=ui.View())
-        
-        else:
-                        
-            id_s = str(interaction.user.id)
-            cur_vote_id = match.get_prediction_of_user(interaction.user.id)
-
-            if not vote:
-                if cur_vote_id:
-                    cur_vote = match.get_team1(interaction, False) if cur_vote_id == 1 else match.get_team2(interaction, False)
-                    embed = discord.Embed(color=discord.Color(7844437))
-                    embed.set_author(name=f"Your current vote is {cur_vote}!", icon_url="https://cdn.discordapp.com/emojis/809149148356018256.png")
-                    embed.description = "To change your vote you can always press one of the buttons."
-                    await interaction.response.send_message(embed=embed, ephemeral=True)
-                    return
-
-                else:
-                    embed = discord.Embed(
-                        title = "You have not yet voted!",
-                        description = "As long as the match has not started yet you can cast your vote, or update your existing vote, by pressing one of the buttons."
-                    )
-                    await interaction.response.send_message(embed=embed, ephemeral=True)
-                return
-
-            elif vote == 1:
-                if id_s in match.predictions_team1:
-                    pass
-                elif id_s in match.predictions_team2:
-                    match.predictions_team1.append(id_s)
-                    match.predictions_team2.remove(id_s)
-                else:
-                    match.predictions_team1.append(id_s)
-
-            elif vote == 2:
-                if id_s in match.predictions_team2:
-                    pass
-                elif id_s in match.predictions_team1:
-                    match.predictions_team2.append(id_s)
-                    match.predictions_team1.remove(id_s)
-                else:
-                    match.predictions_team2.append(id_s)
-            
-            else:
-                return
-
-            match.save()
-            await self._update_predictions(interaction, interaction.channel)
-
-            new_vote = match.get_team1(interaction, False) if vote == 1 else match.get_team2(interaction, False)
-            embed = discord.Embed(color=discord.Color(7844437))
-            embed.set_author(name=f"Voted for {new_vote}!", icon_url="https://cdn.discordapp.com/emojis/809149148356018256.png")
-            await interaction.response.send_message(embed=embed, ephemeral=True)
-
     @commands.Cog.listener()
     async def on_guild_channel_delete(self, channel):
         try: match = MatchChannel(channel.id)
@@ -795,62 +724,11 @@ class match(commands.Cog):
             for guild in self.bot.guilds:
                 matches = get_all_channels(guild.id)
                 
-                categories = dict()
                 for match in matches:
                     channel = guild.get_channel(match.channel_id)
                     if channel:
                         await self._update_channel_name(channel)
 
-                        """
-                        if not channel.overwrites[channel.guild.default_role].view_channel:
-                            continue
-
-                        if channel.category not in categories.keys():
-                            categories[channel.category] = dict(creation_time=None, matches=list())
-                        
-                        categories[channel.category]['matches'].append((match, channel))
-                        if not categories[channel.category]['creation_time'] or match.creation_time > categories[channel.category]['creation_time']:
-                            categories[channel.category]['creation_time'] = match.creation_time
-                
-                categories = {k: v for k, v in sorted(categories.items(), key=lambda item: item[1]['creation_time'], reverse=True)}
-
-                if categories:
-                    calendar_channel = guild.get_channel(get_config_value(guild.id, 'overview_channel_id'))
-                    if calendar_channel: 
-                        embed = discord.Embed(color=discord.Color(16237246))
-                        embed.set_author(name="Match Calendar", icon_url=guild.icon.url)
-                        embed.set_thumbnail(url=guild.icon.url)
-                        is_first_category = True
-                        for category, data in categories.items():
-                            match_data = sorted(data['matches'], key=lambda item: item[0].match_start.timestamp() if item[0].match_start else 0)
-                            title = category.name if category else "Other"
-                            description = '\n'.join([
-                                f'No date specified - {channel.mention}'
-                                if not match.match_start else (
-                                    f'<t:{int(match.match_start.timestamp())}:d> <t:{int(match.match_start.timestamp())}:t> - {channel.mention} (<t:{int(match.match_start.timestamp())}:R>)'
-                                    if match.match_start > datetime.datetime.now(datetime.timezone.utc) else (
-                                        f'<t:{int(match.match_start.timestamp())}:d> <t:{int(match.match_start.timestamp())}:t> - {channel.mention} R: ||{match.result}||'
-                                        if match.result else
-                                        f'<t:{int(match.match_start.timestamp())}:d> <t:{int(match.match_start.timestamp())}:t> - {channel.mention}'
-                                    )
-                                ) for match, channel in match_data
-                            ])
-                            if is_first_category:
-                                embed.title = title
-                                embed.description = description
-                                is_first_category = False
-                            else:
-                                embed.add_field(name=title, value=description, inline=False)
-                            
-                        try: calendar_message = await calendar_channel.fetch_message(get_config_value(guild.id, 'overview_message_id'))
-                        except: calendar_message = None
-
-                        if calendar_message:
-                            await calendar_message.edit(embed=embed)
-                        else:
-                            calendar_message = await calendar_channel.send(embed=embed)
-                            set_config_value(guild.id, 'overview_message_id', calendar_message.id)
-            """
         except Exception as e:
             print('\n\nEXCEPTION WAAAAAA!!!\n', e.__class__.__name__, str(e))
                     
@@ -860,18 +738,16 @@ class match(commands.Cog):
         for guild in self.bot.guilds:
             matches = get_all_channels(guild.id)
             for match in matches:
-                if match.has_predictions:
+                if match.should_show_predictions():
                     channel = guild.get_channel(match.channel_id)
                     try:
-                        message = await channel.fetch_message(match.predictions_message_id)
+                        message = await channel.fetch_message(match.message_id)
                     except:
                         continue
                     else:
                         if match.should_have_predictions():
                             ctx = await self.bot.get_context(message)
-                            embed = await match.to_predictions_embed(ctx)
-                            await message.edit(embed=embed, view=self._get_predictions_view(match))
-                            print('+', channel.name, match.title)
+                            await self._update_match(ctx, channel, send=False)
                         else:
                             if message.components:
                                 await message.edit(view=ui.View())
