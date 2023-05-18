@@ -614,7 +614,7 @@ class match(commands.Cog):
                 if team_index == 1: team_id = match.team1
                 elif team_index == 2: team_id = match.team2
                 try: team_id = int(team_id)
-                except ValueError: team_id = 0
+                except: team_id = 0
 
                 # Does the user have the right role?
                 is_admin = True if message.channel.permissions_for(message.author).manage_messages else False

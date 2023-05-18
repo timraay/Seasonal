@@ -24,15 +24,15 @@ ACTIONS = ['available', 'chosen_by_you', 'chosen_by_opponent', 'final_pick']
 
 HTML_MAP_ROW = """
   <tr>
-    <td id="team1_allies{i}" class="{{team1_allies{i}}}">Allies</td>
-    <td id="team1_axis{i}" class="{{team1_axis{i}}}">Axis</td>
-    <td id="map{i}" class="index prevent-overflow">{mapname}</th>
-    <td id="team2_allies{i}" class="{{team2_allies{i}}}">Allies</td>
-    <td id="team2_axis{i}" class="{{team2_axis{i}}}">Axis</td>
+    <td id="team1_allies{i}" class="{{team1_allies{i}}}"><div class="faction">Allies</div></td>
+    <td id="team1_axis{i}" class="{{team1_axis{i}}}"><div class="faction">Axis</div></td>
+    <td id="map{i}" class="index prevent-overflow"><div class="mapname">{mapname}</div></td>
+    <td id="team2_allies{i}" class="{{team2_allies{i}}}"><div class="faction">Allies</div></td>
+    <td id="team2_axis{i}" class="{{team2_axis{i}}}"><div class="faction">Axis</div></td>
   </tr>"""
 HTML_EMPTY_ROW = """
   <tr>
-    <td class="empty-row">
+    <td class="empty-row"></td>
   </tr>"""
 with open(Path(__location__+'/vote/table.html'), 'r', encoding='utf-8') as f:
     rows = list()
@@ -176,7 +176,7 @@ class MapVote:
         statuses['team2_name'] = self.team2_name
 
         html = HTML_DOC.format(**statuses)
-        imgkit.from_string(html, 'output.png', config=config, css=Path(__location__+'/vote/table.css'), options={'format': 'png', 'quiet': ''})
+        imgkit.from_string(html, 'output.jpg', config=config, css=Path(__location__+'/vote/table.css'), options={'quiet': ''})
         with open('output.png', 'rb') as f:
             img = BytesIO(f.read())
 

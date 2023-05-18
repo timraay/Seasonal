@@ -9,22 +9,34 @@ td {
     border-collapse: collapse;
     background-color:  WhiteSmoke;
     width: 180px;
-    font-size: 32px;
+    font-size: 25px;
 }
 .prevent-overflow {
     white-space: nowrap;
     overflow: hidden;
 }
 .index {
-    text-align: center;
-    font-weight: normal;
-    font-size: 28px;
-    width: 248px;
-    max-width: 248px;
     border-top: 0;
     border-bottom: 0;
     background-color: white;
     padding: 0px 13px 0px 13px;
+}
+.mapname {
+    text-align: center;
+    font-weight: normal;
+    font-size: 29px;
+    position: relative;
+    top: -5px;
+    width: 248px;
+    height: 25px;
+    padding: -10px;
+}
+.faction {
+    font-size: 29px;
+    position: relative;
+    top: -2px;
+    height: 31px;
+    padding: -10px;
 }
 .blank {
     border: none
