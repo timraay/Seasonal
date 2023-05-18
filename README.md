@@ -100,17 +100,17 @@ The bot uses mostly slash commands, however not all commands have been migrated 
 > 
 > *Sets the streaming delay in minutes that casters will have*
 
-## The `s!calendar` command
+## The `/calendar` command
 
 *Is used to create a calendar keeping track of all matches*
-> `s!cal add <category_id>`
+> `/calendar add <category_id>`
 > 
 > *Generates a calendar for all matches within a channel category*
 > - A category is a collapsable list of channels. Enable Developer mode in your Discord's settings, then right-click on that category name, and copy its ID.
-> - Calendars are maintained in a single channel. You can view or set it with `s!cal channel [#channel]`
+> - Calendars are maintained in a single channel. You can view or set it with `/calendar channel [#channel]`
 > - The calendar is automatically updated every 15 minutes
-> - To view all listed categories, use `s!cal list`
-> - To remove a category, use `s!cal delete <#channel>`
+> - To view all listed categories, use `/calendar list`
+> - To remove a category, use `/calendar delete <category_id>`
 
 ## Permissions
 > - Discord Administrators can always use the bot.

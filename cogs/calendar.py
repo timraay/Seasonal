@@ -1,4 +1,5 @@
 import discord
+from discord import app_commands, Interaction
 from discord.ext import commands, tasks
 from typing import *
 from datetime import datetime, timezone
@@ -21,7 +22,7 @@ db.commit()
 SOVIET_MAPS = ["kursk", "stalingrad", "kharkov"]
 BRITISH_MAPS = ["el alamein", "driel"]
 def get_allied_team_name(map_name: str):
-    map_name = map_name.lower().replace(" night", "")
+    map_name = map_name.lower().replace("night", "").strip()
     if map_name in SOVIET_MAPS:
         return "RUS"
     elif map_name in BRITISH_MAPS:
@@ -59,8 +60,12 @@ class CalendarCategory:
             raise ValueError('The category could not be found')
 
         embed = discord.Embed(color=discord.Color(get_config().getint('visuals', 'CalendarColor')), description="")
-        embed.set_author(name=channel.name, icon_url=guild.icon.url)
-        for match_id, match in sorted(self.matches.items(), key=lambda m: m[1].match_start if m[1].match_start else datetime(3000, 1, 1, tzinfo=timezone.utc)):
+        embed.set_author(
+            name=channel.name if len(self.matches) <= 15 else f"{channel.name} (First 15 matches)",
+            icon_url=guild.icon.url
+        )
+
+        for match_id, match in sorted(self.matches.items(), key=lambda m: m[1].match_start if m[1].match_start else datetime(3000, 1, 1, tzinfo=timezone.utc))[:15]:
             lines = list()
             if match.vote_result:
                 faction1 = "GER" if match.vote_result.startswith("!") else get_allied_team_name(match.map)
@@ -140,29 +145,19 @@ class Calendar(commands.Cog):
     async def cog_check(self, ctx):
         return await has_perms(ctx, mod_role=True)
 
-    @commands.group(invoke_without_command=True, aliases=['cal'])
-    async def calendar(self, ctx: commands.Context):
-        cmds = [
-            (f"{ctx.prefix}calendar list", "List all displayed categories"),
-            (f"{ctx.prefix}calendar set <channel>", "Change the channel to send the calendar to"),
-            (f"{ctx.prefix}calendar add <category>", "Add a channel category to the calendar"),
-            (f"{ctx.prefix}calendar remove <category>", "Remove a category from the calendar")
-        ]
-        embed = discord.Embed().add_field(name="Available Commands", value="\n".join([f"> `{syntax}` - {desc}" for (syntax, desc) in cmds]))
-        await ctx.send(embed=embed)
+    CalendarGroup = app_commands.Group(name="calendar", description="Calendar configuration", default_permissions=discord.Permissions())
 
-
-    @calendar.command(name="list")
-    async def list_calendar(self, ctx: commands.Context):
+    @CalendarGroup.command(name="list", description="Show a list of all categories listed on the calendar")
+    async def list_calendar(self, interaction: Interaction):
         embed = discord.Embed()
-        cats = get_categories(ctx.guild)
+        cats = get_categories(interaction.guild)
         
         if cats:
             embed.title = f"There are {str(len(cats))} listed categories."
             embed.description = ""
 
             for cat in cats.values():
-                cat_channel = ctx.guild.get_channel(cat.category_id)
+                cat_channel = interaction.guild.get_channel(cat.category_id)
                 if not cat_channel:
                     continue
                 embed.add_field(
@@ -171,62 +166,93 @@ class Calendar(commands.Cog):
                 )
         else:
             embed.title = "There are no listed categories."
-            embed.description = f"You can add one with the following command:\n`{ctx.prefix}calendar add <category>`"
+            embed.description = f"You can add one with the following command:\n`/calendar add <category>`"
 
-        await ctx.send(embed=embed)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
-    @calendar.command(name="channel", aliases=["set"])
-    async def set_calendar(self, ctx: commands.Context, channel: discord.TextChannel = None):
-        cur.execute('SELECT overview_channel_id FROM config WHERE guild_id = ?', (ctx.guild.id,))
+    @CalendarGroup.command(name="channel", description="View or set the channel the calendar is sent to")
+    @app_commands.describe(
+        channel="The channel to send the calendar to. Leave empty to see the current channel."
+    )
+    async def set_calendar(self, interaction: Interaction, channel: discord.TextChannel = None):
+        cur.execute('SELECT overview_channel_id FROM config WHERE guild_id = ?', (interaction.guild.id,))
         (overview_channel_id,) = cur.fetchone()
+
         if not channel:
-            try: channel = (await commands.TextChannelConverter().convert(ctx, str(overview_channel_id))).mention
-            except: channel = str(overview_channel_id)
-            await ctx.send(embed=discord.Embed(description='Current Calendar Channel is '+channel))
+            channel = interaction.guild.get_channel(overview_channel_id)
+            if not channel:
+                channel = str(overview_channel_id)
+            else:
+                channel = channel.mention
+            await interaction.response.send_message(embed=discord.Embed(description='Current Calendar Channel is '+channel), ephemeral=True)
+        
         else:
+            await interaction.response.defer(ephemeral=True, thinking=True)
             try:
-                cats = get_categories(ctx.guild)
+                cats = get_categories(interaction.guild)
                 for cat in cats.values():
                     try:
-                        message = await cat.fetch_message(ctx.guild)
+                        message = await cat.fetch_message(interaction.guild)
                         await message.delete()
-                        await channel.send(embed=cat.to_embed(ctx.guild))
+                        await channel.send(embed=cat.to_embed(interaction.guild))
                     except:
                         pass
             finally:
-                set_config_value(ctx.guild.id, 'overview_channel_id', channel.id)
-                await ctx.send(embed=discord.Embed(description='Set Calendar Channel to '+channel.mention))
+                set_config_value(interaction.guild.id, 'overview_channel_id', channel.id)
+                await interaction.followup.send(embed=discord.Embed(description='Set Calendar Channel to '+channel.mention), ephemeral=True)
     
-    @calendar.command(name="add")
-    async def add_to_calendar(self, ctx: commands.Context, *, category: discord.CategoryChannel):
+    @CalendarGroup.command(name="add", description="Add a channel category to the calendar")
+    @app_commands.describe(
+        category_id="The ID of the category to add"
+    )
+    async def add_to_calendar(self, interaction: Interaction, category_id: str):
+        try:
+            category_id = int(category_id)
+        except ValueError:
+            raise commands.BadArgument('Value is not a valid ID')
+        category = interaction.guild.get_channel(category_id)
+        if not category or not isinstance(category, discord.CategoryChannel):
+            raise commands.BadArgument('ID does not belong to a channel category')
+        
         cur.execute('SELECT * FROM calendar WHERE category_id = ?', (category.id,))
         if cur.fetchone():
             raise commands.BadArgument('Category is already added')
 
-        cur.execute('SELECT overview_channel_id FROM config WHERE guild_id = ?', (ctx.guild.id,))
+        cur.execute('SELECT overview_channel_id FROM config WHERE guild_id = ?', (interaction.guild.id,))
         (overview_channel_id,) = cur.fetchone()
-        calendar_channel = ctx.guild.get_channel(overview_channel_id)
+        calendar_channel = interaction.guild.get_channel(overview_channel_id)
 
         cat = get_category(category)
-        msg = await calendar_channel.send(embed=cat.to_embed(ctx.guild))
+        msg = await calendar_channel.send(embed=cat.to_embed(interaction.guild))
 
-        cur.execute('INSERT INTO calendar VALUES (?,?,?,?)', (calendar_channel.id, msg.id, category.id, ctx.guild.id))
+        cur.execute('INSERT INTO calendar VALUES (?,?,?,?)', (calendar_channel.id, msg.id, category.id, interaction.guild.id))
         db.commit()
 
         embed = discord.Embed(color=discord.Color(7844437))
         embed.set_author(name="Category added", icon_url="https://cdn.discordapp.com/emojis/809149148356018256.png")
         embed.description = f"**{category.name}** is now part of {calendar_channel.mention}."
-        await ctx.send(embed=embed)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
-    @calendar.command(name="remove")
-    async def remove_from_calendar(self, ctx: commands.Context, *, category: discord.CategoryChannel):
+    @CalendarGroup.command(name="remove", description="Remove a channel category from the calendar")
+    @app_commands.describe(
+        category_id="The ID of the category to remove"
+    )
+    async def remove_from_calendar(self, interaction: Interaction, category_id: str):
+        try:
+            category_id = int(category_id)
+        except ValueError:
+            raise commands.BadArgument('Value is not a valid ID')
+        category = interaction.guild.get_channel(category_id)
+        if not category or not isinstance(category, discord.CategoryChannel):
+            raise commands.BadArgument('ID does not belong to a channel category')
+        
         cur.execute('SELECT * FROM calendar WHERE category_id = ?', (category.id,))
         if not cur.fetchone():
             raise commands.BadArgument('Category already isn\'t part of the calendar')
 
-        cat = get_categories(ctx.guild)[category.id]
+        cat = get_categories(interaction.guild)[category.id]
         try:
-            msg = await cat.fetch_message(ctx.guild)
+            msg = await cat.fetch_message(interaction.guild)
             await msg.delete()
         except:
             pass
@@ -237,7 +263,7 @@ class Calendar(commands.Cog):
         embed = discord.Embed(color=discord.Color(7844437))
         embed.set_author(name="Category added", icon_url="https://cdn.discordapp.com/emojis/809149148356018256.png")
         embed.description = f"**{category.name}** was removed from the calendar."
-        await ctx.send(embed=embed)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @tasks.loop(minutes=10)
     async def calendar_updater(self):
