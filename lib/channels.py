@@ -235,12 +235,14 @@ class MatchChannel:
                 self.vote_server = '2' if self.vote_first_ban == 1 else '1'
             elif self.vote_server_option in [1, 2]:
                 self.vote_server = str(self.vote_server_option)
+            self.save()
 
-        if self.vote_server == '1': server_host = team1
-        elif self.vote_server == '2': server_host = team2
-        elif self.vote_server: server_host = self.vote_server
-
-        self.save()
+        if self.vote_server == '1':
+            server_host = team1
+        elif self.vote_server == '2':
+            server_host = team2
+        elif self.vote_server:
+            server_host = self.vote_server
 
         embed.add_field(inline=True, name='🎲 Coinflip Winner', value=coinflip_winner)
         embed.add_field(inline=True, name='🔨 First Ban', value=first_ban)
