@@ -71,7 +71,7 @@ class CalendarCategory:
             #     lines.append("> \🎙️ *No cast...*"),
             
             match_channel = self.channels[match_id]
-            lines.append(f" → [{match_channel.mention}](https://discord.com/channels/{match_channel.guild.id}/{match_channel.id})")
+            lines.append(f" → {match_channel.mention}")
             
             embed.add_field(name=match.title, value="\n".join(lines))
         return embed
