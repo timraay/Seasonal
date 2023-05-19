@@ -33,7 +33,7 @@ class predictions(commands.Cog):
                 name = get_name(member).replace('`', '') if member else "Unknown user"
                 sum = won + lost
                 rate = won / sum
-                pct = "%100" if won == sum else f"%{round(rate*100, 1)}"
+                pct = "100%" if won == sum else f"{round(rate*100, 1)}%"
                 embed.description += ("\n" + fmt.format(rank, name[:25], won, lost, sum, pct))
                 if is_self:
                     author = f"You have guessed right {won} times!" if user == interaction.user else f"{name} has guessed right {won} times!"
