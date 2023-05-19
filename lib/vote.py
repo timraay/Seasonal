@@ -177,7 +177,7 @@ class MapVote:
 
         html = HTML_DOC.format(**statuses)
         imgkit.from_string(html, 'output.jpg', config=config, css=Path(__location__+'/vote/table.css'), options={'quiet': ''})
-        with open('output.png', 'rb') as f:
+        with open('output.jpg', 'rb') as f:
             img = BytesIO(f.read())
 
         return img
