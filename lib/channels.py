@@ -317,7 +317,7 @@ class MatchChannel:
             and not self.result
             and (
                 not self.match_start
-                or datetime.now(timezone.utc) > self.match_start
+                or datetime.now(timezone.utc) < self.match_start
             )
         )
 
