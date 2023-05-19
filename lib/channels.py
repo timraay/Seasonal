@@ -291,10 +291,10 @@ class MatchChannel:
 
         if render_images:
             img = self.vote.render()
-            file = discord.File(img, filename='output.jpg')
+            file = discord.File(img, filename='output.png')
         else:
             file = None
-        embed.set_image(url='attachment://output.jpg')
+        embed.set_image(url='attachment://output.png')
 
         return embed, file
     async def to_predictions_embed(self, ctx, delay_predictions=False):
