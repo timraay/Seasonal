@@ -17,7 +17,7 @@ class predictions(commands.Cog):
         user = user or interaction.user
 
         predictions = get_predictions(interaction.guild.id)
-        sorted_predictions = sorted(predictions.items(), key=lambda x: x[1][0], reverse=True)
+        sorted_predictions = sorted(predictions.items(), key=lambda x: x[1][0]*1000 - x[1][1], reverse=True)
 
         fmt = "`{: <5} {: <25} {: <5} {: <5} {: <4} {: <5}`"
         embed = discord.Embed(description=fmt.format("RANK", "USERNAME", "RIGHT", "WRONG", "SUM", "RATE"))
