@@ -188,7 +188,8 @@ class match(commands.Cog):
         else: raise commands.BadArgument('A match is already linked with this channel.')
         MatchChannel.new(channel=channel, title=title, desc=description, team1=team1.id if team1 else None, team2=team2.id if team1 else None, has_vote=enable_voting, has_predictions=enable_voting)
         overwrites = channel.overwrites
-        overwrites[interaction.channel.guild.default_role].update(send_messages=False)
+        defaults = overwrites.setdefault(interaction.guild.default_role, discord.PermissionOverwrite())
+        defaults.update(send_messages=False)
         await channel.edit(overwrites=overwrites)
 
         embed = discord.Embed(color=discord.Color(7844437))
@@ -420,9 +421,8 @@ class match(commands.Cog):
 
         if update_perms:
             overwrites = channel.overwrites
-            defaults = overwrites[interaction.channel.guild.default_role]
+            defaults = overwrites.setdefault(interaction.channel.guild.default_role, discord.PermissionOverwrite())
             defaults.update(send_messages=False, add_reactions=False, read_message_history=True)
-            overwrites[interaction.channel.guild.default_role] = defaults
             
             if match.has_vote:
                 try: rep1 = await commands.RoleConverter().convert(interaction, str(match.team1))
