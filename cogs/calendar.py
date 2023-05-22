@@ -298,7 +298,25 @@ class Calendar(commands.Cog):
             print(f'Explosions! Calendar failed to update...')
             traceback.print_exc()
 
-    
+    @commands.Cog.listener()
+    async def on_guild_channel_delete(self, channel):
+        if not isinstance(channel, discord.CategoryChannel):
+            return
+        
+        cur.execute('SELECT * FROM calendar WHERE category_id = ?', (channel.id,))
+        if not cur.fetchone():
+            return
+
+        cat = get_categories(channel.guild)[channel.id]
+        try:
+            msg = await cat.fetch_message(channel.guild)
+            await msg.delete()
+        except:
+            pass
+
+        cur.execute('DELETE FROM calendar WHERE category_id = ?', (cat.category_id,))
+        db.commit()
+        
     @commands.Cog.listener()
     async def on_ready(self):
         #self.channel_name_updater.add_exception_type(Exception)
