@@ -219,13 +219,11 @@ class match(commands.Cog):
             else:
                 await msg.delete()
             
-            message = await _interaction.original_response()
-            await message.edit(embed=embed, view=None)
+            await _interaction.response.edit_message(embed=embed, view=None)
         async def on_cancel(_interaction: Interaction):
             embed = discord.Embed(color=discord.Color.from_rgb(221, 46, 68))
             embed.set_author(name="User cancelled the action", icon_url="https://cdn.discordapp.com/emojis/808045512393621585.png")
-            message = await _interaction.original_response()
-            await message.edit(embed=embed, view=None)
+            await _interaction.response.edit_message(embed=embed, view=None)
 
         await interaction.response.send_message(embed=embed, view=ConfirmView(on_confirm=on_confirm, on_cancel=on_cancel))
 
