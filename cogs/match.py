@@ -194,7 +194,7 @@ class match(commands.Cog):
 
         embed = discord.Embed(color=discord.Color(7844437))
         embed.set_author(name="Match created", icon_url="https://cdn.discordapp.com/emojis/809149148356018256.png")
-        embed.description = f"Further customize it using the `/match set ...` command and reveal it with `/match reveal ...`. You will need to set permissions to view the channel for `@everyone` manually`."
+        embed.description = f"Further customize it using the `/match set ...` command and reveal it with `/match reveal ...`."
         await interaction.response.send_message(embed=embed)
 
     @MatchGroup.command(name="delete", description="Remove a match from a channel")
