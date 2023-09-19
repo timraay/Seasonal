@@ -142,6 +142,10 @@ class Calendar(commands.Cog):
         self.bot = bot
         self.missed = dict()
 
+        #self.channel_name_updater.add_exception_type(Exception)
+        #await asyncio.sleep(3*60) # Don't hit rate limits during testing
+        self.calendar_updater.start()
+
     async def cog_check(self, ctx):
         return await has_perms(ctx, mod_role=True)
 
@@ -297,6 +301,9 @@ class Calendar(commands.Cog):
         except Exception as e:
             print(f'Explosions! Calendar failed to update...')
             traceback.print_exc()
+    @calendar_updater.before_loop
+    async def calendar_updater_before_loop(self):
+        await self.bot.wait_until_ready()
 
     @commands.Cog.listener()
     async def on_guild_channel_delete(self, channel):
@@ -316,12 +323,6 @@ class Calendar(commands.Cog):
 
         cur.execute('DELETE FROM calendar WHERE category_id = ?', (cat.category_id,))
         db.commit()
-        
-    @commands.Cog.listener()
-    async def on_ready(self):
-        #self.channel_name_updater.add_exception_type(Exception)
-        #await asyncio.sleep(3*60) # Don't hit rate limits during testing
-        self.calendar_updater.start()
             
 
 async def setup(bot):

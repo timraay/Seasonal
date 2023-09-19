@@ -47,8 +47,7 @@ class config(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.Cog.listener()
-    async def on_ready(self):
+    async def cog_load(self):
         cur.execute('SELECT guild_id FROM config')
         ids = [guild_id[0] for guild_id in cur.fetchall()]
         for guild in self.bot.guilds:

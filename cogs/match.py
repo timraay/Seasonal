@@ -3,13 +3,14 @@ import discord
 from discord import app_commands, ui, Interaction
 from discord.ext import commands, tasks
 import asyncio
+import re
 
 import datetime
 from dateutil.parser import parse, parserinfo
 
 from lib.channels import MatchChannel, NotFound, get_all_channels
 from lib.streams import Stream, FLAGS
-from lib.vote import MapVote, MAPS
+from lib.vote import MapVote, MAPS, Action, Faction, MapState
 from cogs._events import CustomException
 from utils import get_config, retry
 
@@ -606,11 +607,11 @@ class match(commands.Cog):
         if match.has_vote and not match.vote_result:
             
             try:
-                team_index = match.vote.get_last_team_index()
+                team, turns = match.get_turn()
 
                 team_id = 0
-                if team_index == 1: team_id = match.team1
-                elif team_index == 2: team_id = match.team2
+                if team == 1: team_id = match.team1
+                elif team == 2: team_id = match.team2
                 try: team_id = int(team_id)
                 except: team_id = 0
 
@@ -621,12 +622,12 @@ class match(commands.Cog):
                     content = message.content.lower()
 
                     if not match.vote_first_ban:
-                        if 'ban' in content.split() or 'pick' in content.split(): match.vote_first_ban = team_index
-                        elif 'host' in content.split() or 'server' in content.split(): match.vote_first_ban = 2 if team_index == 1 else 1
+                        if 'ban' in content.split() or 'pick' in content.split(): match.vote_first_ban = team.value
+                        elif 'host' in content.split() or 'server' in content.split(): match.vote_first_ban = team.other().value
                         else: raise CustomException('Invalid option!', 'Choose between either "ban" and "host".')
 
                         # Update vote!
-                        match.vote.add_progress(team=match.vote_first_ban, action=5, faction=0, map=0)
+                        match.vote.add_progress(team=match.vote_first_ban, action=Action.HasFirstBan, faction=0, map_index=0)
                         match.save()
                         
                         # Update message
@@ -634,32 +635,53 @@ class match(commands.Cog):
                         await self._update_match(ctx, message.channel, update_image=False)
 
                     else:
-                        # Undo last ban
                         if is_admin and content in ['back', 'reverse', 'undo']:
-                            match.reverse()
+                            # Undo last ban
+                            match.undo()
                         
                         else:
-                            # Get faction from input
-                            if 'allies' in content.split() or 'us' in content.split(): faction = 'allies'
-                            elif 'axis' in content.split() or 'ger' in content.split(): faction = 'axis'
-                            else: raise CustomException('Invalid faction!', 'Available factions are Allies, Axis.')
-                            content = content.replace(faction, '', 1).strip()
+                            lines = re.split(r" *[,&\n-] *", content)
+                            if len(lines) > turns:
+                                raise CustomException('Too many maps!', f'You can only ban {turns} more maps this turn!')
                             
-                            # Get map from input
-                            try: map_index = [m.lower() for m in MAPS].index(content)
-                            except ValueError: raise CustomException('Invalid map!', 'Available maps are %s.' % ', '.join(MAPS))
-                            map = MAPS[map_index]
+                            bans = list()
+                            for line in lines:
+
+                                map, faction = line.rsplit(' ', 1)
+                                
+                                if faction in ('allies', 'us', 'rus', 'gb'):
+                                    faction = Faction.Allies
+                                elif faction in ('axis', 'ger'):
+                                    faction = Faction.Axis
+                                else:
+                                    raise CustomException('Invalid faction!', 'Available factions are Allies, Axis.')
+
+                                try:
+                                    map_index = [m.lower() for m in MAPS].index(map)
+                                except ValueError:
+                                    raise CustomException('Invalid map!', 'Available maps are %s.' % ', '.join(MAPS))
+                                map = MAPS[map_index]
                             
-                            # Is this map available?
-                            if (team_index == 1 and match.vote.team1[faction][map] != 'available') or (team_index == 2 and match.vote.team2[faction][map] != 'available'):
-                                raise CustomException('This map was already banned!', 'Please pick another one.')
-                            
+                                # Is this map available?
+                                if (
+                                    (team == 1 and match.vote.team1[faction][map] != MapState.Available) or
+                                    (team == 2 and match.vote.team2[faction][map] != MapState.Available)
+                                ):
+                                    raise CustomException(f'{map} {faction.name} was already banned!', 'Please pick another one.')
+                                
+                                ban = (faction, map)
+                                if ban in bans:
+                                    raise CustomException(f'You cannot ban the same map twice!', 'Please pick two unique maps.')
+
+                                bans.append(ban)
+
                             # Ban it!
-                            match.ban_map(team=team_index, faction=faction, map=map)
+                            for faction, map in bans:
+                                match.ban_map(team=team, faction=faction, map=map)
                         
                         # Update message
                         ctx = await self.bot.get_context(message)
-                        await self._update_match(ctx, message.channel, update_image=True, update_perms=True if match.vote_result else False, delay_predictions=False)
+                        await self._update_match(ctx, message.channel, update_image=True, update_perms=bool(match.vote_result), delay_predictions=False)
                         # If delayed predictions are ever turned on again, remember to fix the last input to be deleted before the 10min delay
                         # Edit: Remember to test it altogether because I changed some stuff
 
@@ -725,9 +747,9 @@ class match(commands.Cog):
         except Exception as e:
             print('\n\nEXCEPTION WAAAAAA!!!\n', e.__class__.__name__, str(e))
                     
-
     @commands.Cog.listener()
     async def on_ready(self):
+        await self.bot.wait_until_ready()
         for guild in self.bot.guilds:
             matches = get_all_channels(guild.id)
             for match in matches:

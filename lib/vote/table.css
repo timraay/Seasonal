@@ -51,13 +51,13 @@ td {
     background-color: gray;
     max-width: 360px;
 }
-.chosen_by_you {
+.Banned {
     background-color:  rgb(255, 52, 86);
 }
-.chosen_by_opponent {
+.Denied {
     background-color:  rgb(255, 179, 87);
 }
-.final_pick {
+.FinalPick {
     background-color: PaleGreen;
     font-weight: bold;
 }

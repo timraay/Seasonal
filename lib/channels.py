@@ -7,7 +7,7 @@ import re
 
 from typing import Dict, List
 
-from lib.vote import MapVote
+from lib.vote import MapVote, MAPS, Team, Faction, Action, MapState
 from lib.streams import Stream
 from utils import get_config
 
@@ -247,13 +247,21 @@ class MatchChannel:
                 self.vote_coinflip = randint(1, 2)
             elif self.vote_coinflip_option in [1, 2]:
                 self.vote_coinflip = self.vote_coinflip_option
-            self.vote.add_progress(team=self.vote_coinflip, action=4, faction=0, map=0)
+            self.vote.add_progress(team=self.vote_coinflip, action=4, faction=0, map_index=0)
         
         team1 = self.get_team1(ctx)
         team2 = self.get_team2(ctx)
-        coinflip_winner = team1 if self.vote_coinflip == 1 else (team2 if self.vote_coinflip == 2 else "Unknown")
+        if self.vote_coinflip == 1:
+            coinflip_winner = team1
+        elif self.vote_coinflip == 2:
+            coinflip_winner = team2
+        else:
+            coinflip_winner = "Unknown"
 
-        first_ban = (team1, team2)[self.vote_first_ban-1] if self.vote_first_ban else 'TBD'
+        if self.vote_first_ban:
+            first_ban = (team1, team2)[self.vote_first_ban-1]
+        else:
+            first_ban = 'TBD'
         
         server_host = 'Unknown'
         if not self.vote_server:
@@ -276,15 +284,17 @@ class MatchChannel:
         embed.add_field(inline=True, name='🔨 First Ban', value=first_ban)
         embed.add_field(inline=True, name='💻 Server Host', value=server_host)
 
-        progress = self.parse_progress(self.vote_progress, self.get_team1(ctx), self.get_team2(ctx))
-        embed.description = '\n'.join(progress)
-        team_index = self.vote.get_last_team_index()
-        team_mention = self.get_team1(ctx) if team_index == 1 else self.get_team2(ctx)
+        embed.description = self.parse_progress(self.vote_progress, self.get_team1(ctx), self.get_team2(ctx))
+
+        team, turns = self.get_turn()
+        team_mention = self.get_team1(ctx) if team == 1 else self.get_team2(ctx)
         if not self.vote_result:
             if not self.vote_first_ban:
                 embed.description += f'\n\n{team_mention}, do you choose to ban first, or to host the server? Type `ban` or `host` below.'
             else:
-                embed.description += f"\n\nYour time to ban, {team_mention}! Type map + faction down below.\nExample: `Foy Allies`."
+                embed.description += f"\n\nYour time to ban, {team_mention}! Type map + faction down below.\nExample: `Kursk Allies`."
+                if turns > 1:
+                    embed.description += f" You have **{turns} bans remaining!**"
 
         self.vote.team1_name = self.get_team1(ctx, mention=False)
         self.vote.team2_name = self.get_team2(ctx, mention=False)
@@ -333,24 +343,49 @@ class MatchChannel:
         else:
             return None
 
-    def ban_map(self, team: int, faction, map):
+    def get_turn(self):
+        if len(self.vote.progress) < 2:
+            return (Team(self.vote_coinflip), 0)
+        
+        num_bans = (len(self.vote.progress) // 2) - 1
+
+        if (len(MAPS) % 2) == 1:
+            choices_left = len(MAPS) * 2
+            if (choices_left - num_bans) <= 4:
+                if (self.vote_first_ban == Team.One) == (num_bans % 2 == 0):
+                    return (Team.Two, 1)
+                else:
+                    return (Team.One, 1)
+
+        turns_left = 2 if (num_bans % 2 == 0) else 1
+        if (((num_bans // 2) % 2) == 0) == (self.vote_first_ban == Team.One):
+            return (Team.One, turns_left)
+        else:
+            return (Team.Two, turns_left)
+
+    def ban_map(self, team: Team, faction: Faction, map: str):
+        team = Team(team)
+        faction = Faction(faction)
         self.vote.ban(team, faction, map)
         if str(self.vote).count('0') == 2:
             for team_index, data in enumerate([self.vote.team1, self.vote.team2]):
                 team_index += 1
                 for faction, column in data.items():
-                    for map, status in column.items():
-                        if status == 'available':
+                    for map, state in column.items():
+                        if state == MapState.Available:
                             self.vote.final_pick(team=team_index, faction=faction, map=map)
                             if not self.vote_result:
-                                if (team_index == 1 and faction == 'allies') or (team_index == 2 and faction == 'axis'):
+                                if (
+                                    (team_index == 1 and faction == Faction.Allies) or
+                                    (team_index == 2 and faction == Faction.Axis)
+                                ):
                                     self.vote_result = map
                                 else:
                                     self.vote_result = '!' + map
                                 self.map = map
                             break
         self.save()
-    def reverse(self, amount: int = 1):
+    def undo(self, amount: int = 1):
         for i in range(amount):
             if not len(self.vote.progress) > 3:
                 break
@@ -362,22 +397,37 @@ class MatchChannel:
         for item in progress.split(','):
             if item:
                 action = self._parse_individual_progress(item, team1, team2)
-                if action: output.append(action)
+                if action:
+                    output.append(action)
+
+        output = "\n".join(output)
+        
+        for team in (team1, team2):
+            esc_team = re.escape(team)
+            output = re.sub(
+                esc_team + r" banned (\*\*.+ (?:Allies|Axis)\*\*).\n" + esc_team + r" banned (\*\*.+ (?:Allies|Axis)\*\*).",
+                team + r" banned \1 and \2.",
+                output
+            )
+
         return output
     def _parse_individual_progress(self, progress, team1, team2):
         data = self.vote._translate_action(progress)
 
-        if data['team_index'] == 1:
+        if data['team'] == Team.One:
             data['team'] = team1
             data['other'] = team2
-        elif data['team_index'] == 2:
+        elif data['team'] == Team.Two:
             data['team'] = team2
             data['other'] = team1
         
-        if data['type'] == 1: action = "{team} banned {map} {faction}.".format(**data)
-        elif data['type'] == 3: action = "{map} {faction} is final pick for {team}.".format(**data)
-        elif data['type'] == 4: action = "{team} won the coinflip.".format(**data)
-        elif data['type'] == 5:
+        if data['action'] == Action.BannedMap:
+            action = "{team} banned **{map} {faction}**.".format(**data)
+        elif data['action'] == Action.FinalPick:
+            action = "{map} {faction} is final pick for {team}.".format(**data)
+        elif data['action'] == Action.WonCoinflip:
+            action = "{team} won the coinflip.".format(**data)
+        elif data['action'] == Action.HasFirstBan:
             if self.vote_coinflip == self.vote_first_ban: action = "{team} chooses to ban first. {other} may host the server.".format(**data)
             else: action = "{other} lets {team} ban first, and will be hosting the server.".format(**data)
         else: action = None

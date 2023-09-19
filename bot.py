@@ -117,7 +117,7 @@ async def info(ctx, cog: str = None):
                     embed.add_field(name=cog.qualified_name, value=f"{str(len(commands_list))} commands & {str(len(events_list))} events", inline=False)
         await ctx.send(embed=embed)
 
-async def load_all_cogs():
+async def setup_hook():
     for cog in os.listdir(Path("./cogs")):
         if cog.endswith(".py"):
             try:
@@ -127,10 +127,7 @@ async def load_all_cogs():
                 print(f"{cog} can not be loaded:")
                 raise e
     print('Loaded all cogs')
-bot.setup_hook = load_all_cogs
 
-@bot.event
-async def on_ready():
     try:
         await asyncio.wait_for(bot.tree.sync(), timeout=5)
         print('Synced app commands')
@@ -139,6 +136,7 @@ async def on_ready():
 
     print("\nLaunched " + bot.user.name + " on " + str(datetime.now()))
     print("ID: " + str(bot.user.id))
+bot.setup_hook = setup_hook
 
 # Run the bot
 token = get_config()['bot']['Token']

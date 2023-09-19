@@ -274,8 +274,8 @@ class poll(commands.Cog):
         if cur.fetchone():
             cur.execute('''DELETE FROM polls WHERE message_id = ?''', (payload.message_id,))
             db.commit()
-    
-    @commands.Cog.listener()
+
+    @commands.Cog.listener()    
     async def on_ready(self):
         cur.execute('''SELECT * FROM polls''')
         polls = cur.fetchall()
