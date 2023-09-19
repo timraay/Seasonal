@@ -7,7 +7,7 @@ import re
 
 from typing import Dict, List
 
-from lib.vote import MapVote, MAPS, Team, Faction, Action, MapState
+from lib.vote import MapVote, MAPS, Team, Faction, Action, MapState, MiddleGroundVote
 from lib.streams import Stream
 from utils import get_config
 
@@ -242,12 +242,15 @@ class MatchChannel:
         # Map vote embed
         embed = discord.Embed(title='Map Ban Phase')
 
-        if not self.vote_coinflip:
+        is_middleground = self.use_middleground_server()
+
+        if (is_middleground is not None) and (not self.vote_coinflip):
             if self.vote_coinflip_option == 0:
                 self.vote_coinflip = randint(1, 2)
             elif self.vote_coinflip_option in [1, 2]:
                 self.vote_coinflip = self.vote_coinflip_option
             self.vote.add_progress(team=self.vote_coinflip, action=4, faction=0, map_index=0)
+            self.save()
         
         team1 = self.get_team1(ctx)
         team2 = self.get_team2(ctx)
@@ -256,7 +259,7 @@ class MatchChannel:
         elif self.vote_coinflip == 2:
             coinflip_winner = team2
         else:
-            coinflip_winner = "Unknown"
+            coinflip_winner = 'TBD'
 
         if self.vote_first_ban:
             first_ban = (team1, team2)[self.vote_first_ban-1]
@@ -280,24 +283,47 @@ class MatchChannel:
         elif self.vote_server:
             server_host = self.vote_server
 
-        embed.add_field(inline=True, name='🎲 Coinflip Winner', value=coinflip_winner)
-        embed.add_field(inline=True, name='🔨 First Ban', value=first_ban)
-        embed.add_field(inline=True, name='💻 Server Host', value=server_host)
+        if is_middleground is True:
+            if self.vote_first_ban:
+                final_ban = team2 if (coinflip_winner == first_ban) == (coinflip_winner == team1) else team1
+            else:
+                final_ban = 'TBD'
+            embed.add_field(inline=True, name='🎲 Coinflip Winner', value=coinflip_winner)
+            embed.add_field(inline=True, name='🔨 Extra Ban', value=first_ban)
+            embed.add_field(inline=True, name='🔨 Final Ban', value=final_ban)
+        elif is_middleground is False:
+            embed.add_field(inline=True, name='🎲 Coinflip Winner', value=coinflip_winner)
+            embed.add_field(inline=True, name='🔨 Extra Ban', value=first_ban)
+            embed.add_field(inline=True, name='💻 Server Host', value=server_host)
 
         embed.description = self.parse_progress(self.vote_progress, self.get_team1(ctx), self.get_team2(ctx))
 
-        team, turns = self.get_turn()
-        team_mention = self.get_team1(ctx) if team == 1 else self.get_team2(ctx)
         if not self.vote_result:
-            if not self.vote_first_ban:
-                embed.description += f'\n\n{team_mention}, do you choose to ban first, or to host the server? Type `ban` or `host` below.'
-            else:
+            team, turns = self.get_turn()
+            team_mention = self.get_team1(ctx) if team == 1 else self.get_team2(ctx)
+            if self.vote_first_ban:
                 embed.description += f"\n\nYour time to ban, {team_mention}! Type map + faction down below.\nExample: `Kursk Allies`."
                 if turns > 1:
-                    embed.description += f" You have **{turns} bans remaining!**"
+                    embed.description += f" You can ban **{turns} maps!**"
+            elif is_middleground is True:
+                embed.description += f'\n\n{team_mention}, do you choose to get an extra ban, or to have the final ban? Type `first` or `final` below.'
+            elif is_middleground is False:
+                embed.description += f'\n\n{team_mention}, do you choose to get an extra ban, or to host the server? Type `ban` or `host` below.'
+            else:
+                teams = []
+                if self.vote.mg_vote[Team.One] is None:
+                    teams.append(self.get_team1(ctx))
+                if self.vote.mg_vote[Team.Two] is None:
+                    teams.append(self.get_team2(ctx))
+                teams = " & ".join(teams)
+                embed.description += (
+                    f'\n\n{teams}, decide whether you want to use middleground servers or not. Type `yes` or `no` below.'
+                    '\n\nIf both teams accept, the coinflip winner will choose between having first'
+                    ' or final ban, instead of host or ban advantage.'
+                )
 
-        self.vote.team1_name = self.get_team1(ctx, mention=False)
-        self.vote.team2_name = self.get_team2(ctx, mention=False)
+        self.vote.names[Team.One] = self.get_team1(ctx, mention=False)
+        self.vote.names[Team.Two] = self.get_team2(ctx, mention=False)
 
         if render_images:
             img = self.vote.render()
@@ -344,41 +370,59 @@ class MatchChannel:
             return None
 
     def get_turn(self):
-        if len(self.vote.progress) < 2:
-            return (Team(self.vote_coinflip), 0)
-        
-        num_bans = (len(self.vote.progress) // 2) - 1
+        if self.use_middleground_server() is True:
+            num_bans = (len(self.vote.progress) // 2) - 2
 
-        if (len(MAPS) % 2) == 1:
-            choices_left = len(MAPS) * 2
-            if (choices_left - num_bans) <= 4:
-                if (self.vote_first_ban == Team.One) == (num_bans % 2 == 0):
-                    return (Team.Two, 1)
-                else:
-                    return (Team.One, 1)
+            if num_bans < 0:
+                return (Team.One, 0)
 
-        turns_left = 2 if (num_bans % 2 == 0) else 1
-        if (((num_bans // 2) % 2) == 0) == (self.vote_first_ban == Team.One):
-            return (Team.One, turns_left)
+            if (len(MAPS) % 2) == 1:
+                choices_left = len(MAPS) * 2
+                if (choices_left - num_bans) <= 4:
+                    if (self.vote_first_ban == Team.One) == (num_bans % 2 == 0):
+                        return (Team.Two, 1)
+                    else:
+                        return (Team.One, 1)
+
+            turns_left = 2 if (num_bans % 2 == 0) else 1
+            if (((num_bans // 2) % 2) == 0) == (self.vote_first_ban == Team.One):
+                return (Team.One, turns_left)
+            else:
+                return (Team.Two, turns_left)
         else:
-            return (Team.Two, turns_left)
+            return (self.vote.get_last_team(), 1)
+    
+    def use_middleground_server(self):
+        if self.vote:
+            if (
+                (self.vote.mg_vote[Team.One] == MiddleGroundVote.No) or
+                (self.vote.mg_vote[Team.Two] == MiddleGroundVote.No)
+            ):
+                return False
+            elif (
+                (self.vote.mg_vote[Team.One] == MiddleGroundVote.Yes) and
+                (self.vote.mg_vote[Team.Two] == MiddleGroundVote.Yes)
+            ):
+                return True
+        return None
 
+    def vote_middleground(self, team: Team, vote: MiddleGroundVote):
+        self.vote.vote_middleground(team, vote)
+        if self.use_middleground_server() is True:
+            self.vote_server = "Middleground"
+        self.save()
     def ban_map(self, team: Team, faction: Faction, map: str):
         team = Team(team)
         faction = Faction(faction)
         self.vote.ban(team, faction, map)
         if str(self.vote).count('0') == 2:
-            for team_index, data in enumerate([self.vote.team1, self.vote.team2]):
-                team_index += 1
+            for team, data in self.vote.maps.items():
                 for faction, column in data.items():
                     for map, state in column.items():
                         if state == MapState.Available:
-                            self.vote.final_pick(team=team_index, faction=faction, map=map)
+                            self.vote.final_pick(team=team, faction=faction, map=map)
                             if not self.vote_result:
-                                if (
-                                    (team_index == 1 and faction == Faction.Allies) or
-                                    (team_index == 2 and faction == Faction.Axis)
-                                ):
+                                if team.value == faction.value:
                                     self.vote_result = map
                                 else:
                                     self.vote_result = '!' + map
@@ -409,6 +453,12 @@ class MatchChannel:
                 team + r" banned \1 and \2.",
                 output
             )
+        output = re.sub(
+            r".+ wants to use a middleground server.\n.+ wants to use a middleground server.",
+            r"Both teams decided a middleground server will be used.",
+            output,
+            count=1
+        )
 
         return output
     def _parse_individual_progress(self, progress, team1, team2):
@@ -428,9 +478,26 @@ class MatchChannel:
         elif data['action'] == Action.WonCoinflip:
             action = "{team} won the coinflip.".format(**data)
         elif data['action'] == Action.HasFirstBan:
-            if self.vote_coinflip == self.vote_first_ban: action = "{team} chooses to ban first. {other} may host the server.".format(**data)
-            else: action = "{other} lets {team} ban first, and will be hosting the server.".format(**data)
-        else: action = None
+            if self.use_middleground_server() is True:
+                if self.vote_coinflip == self.vote_first_ban:
+                    action = "{team} chooses to ban first. {other} gets the final ban.".format(**data)
+                else:
+                    action = "{other} lets {team} ban first, and will be getting the final ban.".format(**data)
+            else:
+                if self.vote_coinflip == self.vote_first_ban:
+                    action = "{team} chooses to ban first. {other} may host the server.".format(**data)
+                else:
+                    action = "{other} lets {team} ban first, and will be hosting the server.".format(**data)
+        elif data['action'] == Action.ChoseMiddleGround:
+            vote = MiddleGroundVote(data['map_index'])
+            if vote == MiddleGroundVote.Yes:
+                action = "{team} wants to use a middleground server.".format(**data)
+            elif vote == MiddleGroundVote.No:
+                action = "{team} decided no middleground server will be used.".format(**data)
+            else:
+                action = None
+        else:
+            action = None
         return action
 
 

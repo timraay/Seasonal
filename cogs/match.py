@@ -10,7 +10,7 @@ from dateutil.parser import parse, parserinfo
 
 from lib.channels import MatchChannel, NotFound, get_all_channels
 from lib.streams import Stream, FLAGS
-from lib.vote import MapVote, MAPS, Action, Faction, MapState
+from lib.vote import MapVote, MAPS, Action, Team, Faction, MapState, MiddleGroundVote
 from cogs._events import CustomException
 from utils import get_config, retry
 
@@ -607,83 +607,129 @@ class match(commands.Cog):
         if match.has_vote and not match.vote_result:
             
             try:
-                team, turns = match.get_turn()
-
-                team_id = 0
-                if team == 1: team_id = match.team1
-                elif team == 2: team_id = match.team2
-                try: team_id = int(team_id)
-                except: team_id = 0
-
-                # Does the user have the right role?
                 is_admin = True if message.channel.permissions_for(message.author).manage_messages else False
-                if message.guild.get_role(team_id) in message.author.roles or is_admin:
-                    
-                    content = message.content.lower()
+                is_middleground = match.use_middleground_server()
+                content = message.content.lower()
+                words = content.split()
 
-                    if not match.vote_first_ban:
-                        if 'ban' in content.split() or 'pick' in content.split(): match.vote_first_ban = team.value
-                        elif 'host' in content.split() or 'server' in content.split(): match.vote_first_ban = team.other().value
-                        else: raise CustomException('Invalid option!', 'Choose between either "ban" and "host".')
+                if is_middleground is None:
+                    try: team1_id = int(match.team1)
+                    except ValueError: team1_id = 0
+                    try: team2_id = int(match.team2)
+                    except ValueError: team2_id = 0
 
+                    if is_admin:
+                        team = Team.One if match.vote.mg_vote[Team.One] is None else Team.Two
+                    elif match.vote.mg_vote[Team.One] is None and message.guild.get_role(team1_id) in message.author.roles:
+                        team = Team.One
+                    elif match.vote.mg_vote[Team.Two] is None and message.guild.get_role(team2_id) in message.author.roles:
+                        team = Team.Two
+                    else:
+                        team = None
+
+                    if team:
+                        if 'yes' in words or 'middleground' in words:
+                            vote = MiddleGroundVote.Yes
+                        elif 'no' in words:
+                            vote = MiddleGroundVote.No
+                        else:
+                            raise CustomException('Invalid option!', 'Choose between either "yes" or "no".')
+                        
                         # Update vote!
-                        match.vote.add_progress(team=match.vote_first_ban, action=Action.HasFirstBan, faction=0, map_index=0)
+                        match.vote_middleground(team=team, vote=vote)
                         match.save()
                         
                         # Update message
                         ctx = await self.bot.get_context(message)
                         await self._update_match(ctx, message.channel, update_image=False)
 
-                    else:
-                        if is_admin and content in ['back', 'reverse', 'undo']:
-                            # Undo last ban
-                            match.undo()
+                else:
+                    team, turns = match.get_turn()
+
+                    team_id = 0
+                    if team == 1: team_id = match.team1
+                    elif team == 2: team_id = match.team2
+                    try: team_id = int(team_id)
+                    except: team_id = 0
+
+                    # Does the user have the right role?
+                    if message.guild.get_role(team_id) in message.author.roles or is_admin:
+
+                        if not match.vote_first_ban:
+                            if is_middleground:
+                                if 'first' in words:
+                                    match.vote_first_ban = team.value
+                                elif 'final' in words:
+                                    match.vote_first_ban = team.other().value
+                                else:
+                                    raise CustomException('Invalid option!', 'Choose between either "first" or "final".')
+
+                            else:
+                                if 'ban' in words or 'extra' in words:
+                                    match.vote_first_ban = team.value
+                                elif 'host' in words or 'server' in words:
+                                    match.vote_first_ban = team.other().value
+                                else:
+                                    raise CustomException('Invalid option!', 'Choose between either "ban" or "host".')
+
+                            # Update vote!
+                            match.vote.add_progress(team=match.vote_first_ban, action=Action.HasFirstBan, faction=0, map_index=0)
+                            match.save()
+                            
+                            # Update message
+                            ctx = await self.bot.get_context(message)
+                            await self._update_match(ctx, message.channel, update_image=False)
                         
                         else:
-                            lines = re.split(r" *[,&\n-] *", content)
-                            if len(lines) > turns:
-                                raise CustomException('Too many maps!', f'You can only ban {turns} more maps this turn!')
+                            if is_admin and content in ['back', 'reverse', 'undo']:
+                                # Undo last ban
+                                match.undo()
                             
-                            bans = list()
-                            for line in lines:
-
-                                map, faction = line.rsplit(' ', 1)
+                            else:
+                                lines = re.split(r" *[,&\n-] *", content)
+                                if len(lines) > turns:
+                                    raise CustomException('Too many maps!', f'You can only ban {turns} more maps this turn!')
                                 
-                                if faction in ('allies', 'us', 'rus', 'gb'):
-                                    faction = Faction.Allies
-                                elif faction in ('axis', 'ger'):
-                                    faction = Faction.Axis
-                                else:
-                                    raise CustomException('Invalid faction!', 'Available factions are Allies, Axis.')
+                                bans = list()
+                                for line in lines:
 
-                                try:
-                                    map_index = [m.lower() for m in MAPS].index(map)
-                                except ValueError:
-                                    raise CustomException('Invalid map!', 'Available maps are %s.' % ', '.join(MAPS))
-                                map = MAPS[map_index]
+                                    map, faction = line.rsplit(' ', 1)
+                                    
+                                    if faction in ('allies', 'us', 'rus', 'gb'):
+                                        faction = Faction.Allies
+                                    elif faction in ('axis', 'ger'):
+                                        faction = Faction.Axis
+                                    else:
+                                        raise CustomException('Invalid faction!', 'Available factions are Allies, Axis.')
+
+                                    try:
+                                        map_index = [m.lower() for m in MAPS].index(map)
+                                    except ValueError:
+                                        raise CustomException('Invalid map!', 'Available maps are %s.' % ', '.join(MAPS))
+                                    map = MAPS[map_index]
+                                
+                                    # Is this map available?
+                                    if (
+                                        (team == 1 and match.vote.maps[Team.One][faction][map] != MapState.Available) or
+                                        (team == 2 and match.vote.maps[Team.Two][faction][map] != MapState.Available)
+                                    ):
+                                        raise CustomException(f'{map} {faction.name} was already banned!', 'Please pick another one.')
+                                    
+                                    ban = (faction, map)
+                                    if ban in bans:
+                                        raise CustomException(f'You cannot ban the same map twice!', 'Please pick two unique maps.')
+
+                                    bans.append(ban)
+
+                                # Ban it!
+                                for faction, map in bans:
+                                    match.ban_map(team=team, faction=faction, map=map)
                             
-                                # Is this map available?
-                                if (
-                                    (team == 1 and match.vote.team1[faction][map] != MapState.Available) or
-                                    (team == 2 and match.vote.team2[faction][map] != MapState.Available)
-                                ):
-                                    raise CustomException(f'{map} {faction.name} was already banned!', 'Please pick another one.')
-                                
-                                ban = (faction, map)
-                                if ban in bans:
-                                    raise CustomException(f'You cannot ban the same map twice!', 'Please pick two unique maps.')
-
-                                bans.append(ban)
-
-                            # Ban it!
-                            for faction, map in bans:
-                                match.ban_map(team=team, faction=faction, map=map)
-                        
-                        # Update message
-                        ctx = await self.bot.get_context(message)
-                        await self._update_match(ctx, message.channel, update_image=True, update_perms=bool(match.vote_result), delay_predictions=False)
-                        # If delayed predictions are ever turned on again, remember to fix the last input to be deleted before the 10min delay
-                        # Edit: Remember to test it altogether because I changed some stuff
+                            # Update message
+                            ctx = await self.bot.get_context(message)
+                            await self._update_match(ctx, message.channel, update_image=True, update_perms=bool(match.vote_result), delay_predictions=False)
+                            # If delayed predictions are ever turned on again, remember to fix the last input to be deleted before the 10min delay
+                            # Edit: Remember to test it altogether because I changed some stuff
 
             except CustomException as e:
                 embed = discord.Embed(color=discord.Color.from_rgb(221, 46, 68))

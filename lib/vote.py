@@ -52,6 +52,7 @@ class Action(IntEnum):
     FinalPick = 3
     WonCoinflip = 4
     HasFirstBan = 5
+    ChoseMiddleGround = 6
 class Team(IntEnum):
     One = 1
     Two = 2
@@ -72,6 +73,17 @@ class MapState(IntEnum):
     Banned = 1
     Denied = 2
     FinalPick = 3
+class MiddleGroundVote(IntEnum):
+    No = 0
+    Yes = 1
+    Skipped = 2
+    def bool_or_none(self):
+        if self.value == 0:
+            return False
+        elif self.value == 1:
+            return True
+        else:
+            return None
 
 class MapVote:
 
@@ -98,13 +110,26 @@ class MapVote:
         return raw['team']
 
     def __init__(self, data=None, team1="TEAM 1", team2="TEAM 2"):
-        self.team1 = {Faction.Allies: dict(), Faction.Axis: dict()}
-        self.team1[Faction.Allies] = {k: MapState.Available for k in MAPS}
-        self.team1[Faction.Axis] = deepcopy(self.team1[Faction.Allies])
-        self.team2 = deepcopy(self.team1)
+        self.maps = {
+            Team.One: {
+                Faction.Allies: {k: MapState.Available for k in MAPS},
+                Faction.Axis: {k: MapState.Available for k in MAPS}
+            },
+            Team.Two: {
+                Faction.Allies: {k: MapState.Available for k in MAPS},
+                Faction.Axis: {k: MapState.Available for k in MAPS}
+            }
+        }
 
-        self.team1_name = str(team1)
-        self.team2_name = str(team2)
+        self.mg_vote = {
+            Team.One: None,
+            Team.Two: None,
+        }
+
+        self.names = {
+            Team.One: str(team1),
+            Team.Two: str(team2),
+        }
 
         if not data:
             self.progress = list()
@@ -115,23 +140,22 @@ class MapVote:
             raw = self._translate_action(action)
             team = raw['team']
             faction = raw['faction']
+            action = raw['action']
 
-            if not (0 < raw['action'] <= 3):
-                continue
-            
-            if team == Team.One:
-                self.team1[faction][raw['map']] = MapState(raw['action'])
-            elif team == Team.Two:
-                self.team2[faction][raw['map']] = MapState(raw['action'])
+            if 0 < action <= 3:
+                self.maps[team][faction][raw['map']] = MapState(raw['action'])
+            elif action == Action.ChoseMiddleGround:
+                self.mg_vote[team] = MiddleGroundVote(raw['map_index'])
 
     def __str__(self):
         columns = list()
-        for row in (self.team1[Faction.Allies], self.team1[Faction.Axis], self.team2[Faction.Allies], self.team2[Faction.Axis]):
-            column = ['0'] * len(MAPS)
-            for i, value in enumerate(row.values()):
-                column[i] = str(value.value)
-            column = ''.join(column)
-            columns.append(column)
+        for team in self.maps.values():
+            for row in team.values():
+                column = ['0'] * len(MAPS)
+                for i, value in enumerate(row.values()):
+                    column[i] = str(value.value)
+                column = ''.join(column)
+                columns.append(column)
         return ','.join(columns)
 
 
@@ -142,10 +166,7 @@ class MapVote:
         state = MapState(action)
 
         self.add_progress(team=team, faction=faction, map_index=map_index, action=action)
-        if team == 1:
-            self.team1[faction][map] = state
-        elif team == 2:
-            self.team2[faction][map] = state
+        self.maps[team][faction][map] = state
 
     def add_progress(self, team: Team, faction: Faction, map_index: int, action: Action):
         team = Team(team)
@@ -166,18 +187,26 @@ class MapVote:
         self.update(team, faction, map, Action.FinalPick)
         self.update(team.other(), faction.other(), map, Action.FinalPick)
 
+    def vote_middleground(self, team: Team, vote: MiddleGroundVote):
+        team = Team(team)
+        vote = MiddleGroundVote(vote)
+        self.add_progress(team, Faction.Unknown, map_index=vote.value, action=Action.ChoseMiddleGround)
+        self.mg_vote[team] = vote
+
+        if vote == MiddleGroundVote.No and self.mg_vote[team.other()] is None:
+            self.add_progress(team.other(), Faction.Unknown, map_index=MiddleGroundVote.Skipped.value, action=Action.ChoseMiddleGround)
+
     def render(self):
         states = dict()
 
-        for team, data in enumerate([self.team1, self.team2]):
-            team += 1
+        for team, data in self.maps.items():
             for faction, column in data.items():
                 for i, state in enumerate(column.values()):
                     key = f'team{team}_{faction.name}{i}'
                     states[key] = state.name
 
-        states['team1_name'] = self.team1_name
-        states['team2_name'] = self.team2_name
+        states['team1_name'] = self.names[1]
+        states['team2_name'] = self.names[2]
 
         html = HTML_DOC.format(**states)
         imgkit.from_string(html, 'output.png', config=config, css=Path(__location__+'/vote/table.css'), options={'format': 'png', 'quiet': ''})
@@ -190,8 +219,8 @@ class MapVote:
 
 if __name__ == "__main__":
     vote = MapVote(data='4200,1221,2111')
-    print(vote.team1)
-    print(vote.team2)
+    print(vote.maps[1])
+    print(vote.maps[2])
     print(vote)
     vote.ban(team=Team.One, faction=Faction.Allies, map='SME')
     vote.ban(team=Team.Two, faction=Faction.Axis, map='Foy')
