@@ -3,13 +3,44 @@ from discord.ext import commands
 
 from datetime import datetime, timezone
 from random import randint
+from enum import StrEnum, auto
 import re
 
 from typing import Dict, List
 
 from lib.vote import MapVote, MAPS, Team, Faction, Action, MapState, MiddleGroundVote
 from lib.streams import Stream
-from utils import get_config
+from utils import get_config, unpack_cfg_list
+
+class MiddleGroundMethod(StrEnum):
+    always=auto()
+    never=auto()
+    vote=auto()
+    regioned=auto()
+
+MIDDLEGROUND_METHOD: MiddleGroundMethod = MiddleGroundMethod(get_config().get("behavior", "MiddleGroundMethod", fallback=MiddleGroundMethod.never))
+MIDDLEGROUND_REGIONS = {
+    role: region
+    for region, role in [
+        (region, role)
+        for region, roles in get_config()["behavior.regions"].items()
+        for role in unpack_cfg_list(roles)
+    ]
+}
+MIDDLEGROUND_MATCHUPS = {
+    region: set(MIDDLEGROUND_REGIONS.values() if regions.strip() == "*" else unpack_cfg_list(regions))
+    for region, regions in get_config()["behavior.middlegrounds"].items()
+}
+MIDDLEGROUND_DEFAULT_VOTE_PROGRESS = {
+    MiddleGroundMethod.always: "6101,6202", # "Yes" and "Skipped"
+    MiddleGroundMethod.never: "6100,6200", # "No" and "No"
+    MiddleGroundMethod.vote: "",
+    MiddleGroundMethod.regioned: "6102,6202", # "Skipped" and "Skipped"
+}[MIDDLEGROUND_METHOD]
+
+print("Middleground method:", MIDDLEGROUND_METHOD)
+print("Regions:", MIDDLEGROUND_REGIONS)
+print("Matchups:", MIDDLEGROUND_MATCHUPS)
 
 import sqlite3
 db = sqlite3.connect('seasonal.db')
@@ -111,7 +142,7 @@ class MatchChannel:
         vote_server_option = 0
         vote_server = None
         vote_first_ban = None
-        vote_progress = None
+        vote_progress = MIDDLEGROUND_DEFAULT_VOTE_PROGRESS
         predictions_team1 = ''
         predictions_team2 = ''
         predictions_team1_emoji = get_config()['visuals']['DefaultTeam1Emoji']
@@ -302,11 +333,11 @@ class MatchChannel:
             team, turns = self.get_turn()
             team_mention = self.get_team1(ctx) if team == 1 else self.get_team2(ctx)
             if self.vote_first_ban:
-                embed.description += f"\n\nYour time to ban, {team_mention}! Type map + faction down below.\nExample: `Kursk Allies`."
+                embed.description += f"\n\nYour time to ban, {team_mention}! Type map + faction down below.\nExample: `{MAPS[0]} Allies`."
                 if turns > 1:
                     embed.description += f" You can ban **{turns} maps!**"
             elif is_middleground is True:
-                embed.description += f'\n\n{team_mention}, do you choose to get an extra ban, or to have the final ban? Type `first` or `final` below.'
+                embed.description += f'\n\n{team_mention}, do you choose to get an extra ban, or to have the final ban? Type `extra` or `final` below.'
             elif is_middleground is False:
                 embed.description += f'\n\n{team_mention}, do you choose to get an extra ban, or to host the server? Type `ban` or `host` below.'
             else:
@@ -318,8 +349,8 @@ class MatchChannel:
                 teams = " & ".join(teams)
                 embed.description += (
                     f'\n\n{teams}, decide whether you want to use middleground servers or not. Type `yes` or `no` below.'
-                    '\n\nIf both teams accept, the coinflip winner will choose between having first'
-                    ' or final ban, instead of host or ban advantage.'
+                    '\n\nIf both teams accept, the coinflip winner will choose between having an extra'
+                    ' or the final ban, instead of host or ban advantage.'
                 )
 
         self.vote.names[Team.One] = self.get_team1(ctx, mention=False)
@@ -394,16 +425,29 @@ class MatchChannel:
     
     def use_middleground_server(self):
         if self.vote:
+            t1_vote = self.vote.mg_vote[Team.One]
+            t2_vote = self.vote.mg_vote[Team.Two]
             if (
-                (self.vote.mg_vote[Team.One] == MiddleGroundVote.No) or
-                (self.vote.mg_vote[Team.Two] == MiddleGroundVote.No)
+                (t1_vote == MiddleGroundVote.No) or
+                (t2_vote == MiddleGroundVote.No)
             ):
                 return False
             elif (
-                (self.vote.mg_vote[Team.One] == MiddleGroundVote.Yes) and
-                (self.vote.mg_vote[Team.Two] == MiddleGroundVote.Yes)
+                (t1_vote == MiddleGroundVote.Yes) and
+                (t2_vote == MiddleGroundVote.Yes or t2_vote == MiddleGroundVote.Skipped)
             ):
                 return True
+            elif (
+                (t1_vote == MiddleGroundVote.Skipped) and
+                (t2_vote == MiddleGroundVote.Skipped)
+            ):
+                region1 = MIDDLEGROUND_REGIONS.get(self.team1)
+                region2 = MIDDLEGROUND_REGIONS.get(self.team2)
+                if region1 and region2:
+                    return region2 in MIDDLEGROUND_MATCHUPS[region1]
+                else:
+                    return False
+                
         return None
 
     def vote_middleground(self, team: Team, vote: MiddleGroundVote):
@@ -480,22 +524,25 @@ class MatchChannel:
         elif data['action'] == Action.HasFirstBan:
             if self.use_middleground_server() is True:
                 if self.vote_coinflip == self.vote_first_ban:
-                    action = "{team} chooses to ban first. {other} gets the final ban.".format(**data)
+                    action = "{team} chooses an extra ban. {other} gets the final ban.".format(**data)
                 else:
-                    action = "{other} lets {team} ban first, and will be getting the final ban.".format(**data)
+                    action = "{other} gives {team} an extra ban, and will be getting the final ban.".format(**data)
             else:
                 if self.vote_coinflip == self.vote_first_ban:
                     action = "{team} chooses to ban first. {other} may host the server.".format(**data)
                 else:
                     action = "{other} lets {team} ban first, and will be hosting the server.".format(**data)
         elif data['action'] == Action.ChoseMiddleGround:
-            vote = MiddleGroundVote(data['map_index'])
-            if vote == MiddleGroundVote.Yes:
-                action = "{team} wants to use a middleground server.".format(**data)
-            elif vote == MiddleGroundVote.No:
-                action = "{team} decided no middleground server will be used.".format(**data)
-            else:
+            if MIDDLEGROUND_METHOD != MiddleGroundMethod.vote:
                 action = None
+            else:
+                vote = MiddleGroundVote(data['map_index'])
+                if vote == MiddleGroundVote.Yes:
+                    action = "{team} wants to use a middleground server.".format(**data)
+                elif vote == MiddleGroundVote.No:
+                    action = "{team} decided no middleground server will be used.".format(**data)
+                else:
+                    action = None
         else:
             action = None
         return action

@@ -170,4 +170,6 @@ def get_config() -> ConfigParser:
         parser.read('config.ini', encoding='utf-8')
         CONFIG = parser
     return CONFIG
-    
+
+def unpack_cfg_list(value: str):
+    return value.strip("\n").replace(",", "\n").split("\n")

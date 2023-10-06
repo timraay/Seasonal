@@ -1,16 +1,15 @@
-from copy import deepcopy
 from pathlib import Path
 import imgkit
 from io import BytesIO
-from enum import IntEnum, Enum
+from enum import IntEnum
 
-from utils import get_config
+from utils import get_config, unpack_cfg_list
 
 import os
 __location__ = os.path.realpath(
     os.path.join(os.getcwd(), os.path.dirname(__file__)))
 
-app_path = get_config()['wkhtmltoimage']['AppPath']
+app_path = get_config().get('wkhtmltoimage', 'AppPath')
 if app_path:
     app_path = Path(app_path)
     if not app_path.is_absolute():
@@ -19,7 +18,7 @@ if app_path:
 else:
     config = imgkit.config()
 
-MAPS_WITH_BREAKS = get_config()['behavior']['MapPool'].split(',')
+MAPS_WITH_BREAKS = unpack_cfg_list(get_config().get('behavior', 'MapPool'))
 MAPS = [m for m in MAPS_WITH_BREAKS if m]
 ACTIONS = ['available', 'chosen_by_you', 'chosen_by_opponent', 'final_pick']
 

@@ -8,7 +8,7 @@ import re
 import datetime
 from dateutil.parser import parse, parserinfo
 
-from lib.channels import MatchChannel, NotFound, get_all_channels
+from lib.channels import MatchChannel, NotFound, get_all_channels, MIDDLEGROUND_DEFAULT_VOTE_PROGRESS
 from lib.streams import Stream, FLAGS
 from lib.vote import MapVote, MAPS, Action, Team, Faction, MapState, MiddleGroundVote
 from cogs._events import CustomException
@@ -590,7 +590,7 @@ class match(commands.Cog):
         match.vote_server_option = 0
         match.vote_server = None
         match.vote_first_ban = 0
-        match.vote_progress = None
+        match.vote_progress = MIDDLEGROUND_DEFAULT_VOTE_PROGRESS
         match.vote = MapVote(team1=match.team1, team2=match.team2, data=match.vote_progress)
         await self._after_setting_change(interaction, match, channel, "Reset map vote")
 
@@ -657,12 +657,12 @@ class match(commands.Cog):
 
                         if not match.vote_first_ban:
                             if is_middleground:
-                                if 'first' in words:
+                                if 'extra' in words:
                                     match.vote_first_ban = team.value
                                 elif 'final' in words:
                                     match.vote_first_ban = team.other().value
                                 else:
-                                    raise CustomException('Invalid option!', 'Choose between either "first" or "final".')
+                                    raise CustomException('Invalid option!', 'Choose between either "extra" or "final".')
 
                             else:
                                 if 'ban' in words or 'extra' in words:
