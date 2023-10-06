@@ -274,8 +274,10 @@ class Calendar(commands.Cog):
         try:
             for guild in self.bot.guilds:
                 cur.execute('SELECT overview_channel_id FROM config WHERE guild_id = ?', (guild.id,))
-                (calendar_channel_id,) = cur.fetchone()
-                calendar_channel = guild.get_channel(calendar_channel_id)
+                calendar_channel_id = cur.fetchone()
+                if calendar_channel_id is None:
+                    continue
+                calendar_channel = guild.get_channel(calendar_channel_id[0])
                 if not calendar_channel:
                     continue
                 
