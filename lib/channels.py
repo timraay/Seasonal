@@ -405,7 +405,7 @@ class MatchChannel:
             num_bans = (len(self.vote.progress) // 2) - 2
 
             if num_bans < 0:
-                return (Team.One, 0)
+                return (Team(self.vote_coinflip or 1), 0)
 
             if (len(MAPS) % 2) == 1:
                 choices_left = len(MAPS) * 2
