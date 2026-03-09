@@ -424,12 +424,17 @@ class match(commands.Cog):
             defaults.update(send_messages=False, add_reactions=False, read_message_history=True)
             
             if match.has_vote:
+                team_overwrites = discord.PermissionOverwrite(
+                    send_messages=None if match.vote_result else True,
+                    send_messages_in_threads=True,
+                    view_channel=True,
+                )
                 try: rep1 = await commands.RoleConverter().convert(interaction, str(match.team1))
                 except: pass
-                else: overwrites[rep1] = discord.PermissionOverwrite(send_messages=None if match.vote_result else True, view_channel=True)
+                else: overwrites[rep1] = team_overwrites
                 try: rep2 = await commands.RoleConverter().convert(interaction, str(match.team2))
                 except: pass
-                else: overwrites[rep2] = discord.PermissionOverwrite(send_messages=None if match.vote_result else True, view_channel=True)
+                else: overwrites[rep2] = team_overwrites
             
             await channel.edit(overwrites=overwrites)
         
